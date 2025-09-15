@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/common/logger"
+	"github.com/songquanpeng/one-api/model"
 	"github.com/songquanpeng/one-api/relay"
 	"github.com/songquanpeng/one-api/relay/adaptor"
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
@@ -19,10 +21,11 @@ import (
 	billingratio "github.com/songquanpeng/one-api/relay/billing/ratio"
 	"github.com/songquanpeng/one-api/relay/channeltype"
 	"github.com/songquanpeng/one-api/relay/meta"
-	"github.com/songquanpeng/one-api/relay/model"
+	relaymodel "github.com/songquanpeng/one-api/relay/model"
+	"github.com/songquanpeng/one-api/relay/relaymode"
 )
 
-func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
+func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	meta := meta.GetByContext(c)
 	// get & validate textRequest
@@ -37,6 +40,44 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	meta.OriginModelName = textRequest.Model
 	textRequest.Model, _ = getMappedModelName(textRequest.Model, meta.ModelMapping)
 	meta.ActualModelName = textRequest.Model
+	
+	// 创建聊天记录服务
+	chatService := model.NewChatRecordService(
+		meta.UserId,
+		meta.TokenId,
+		meta.ChannelId,
+		"", // ChannelName 暂时为空，可以从渠道配置中获取
+		meta.APIType,
+		meta.ActualModelName,
+		"", // RequestId 暂时为空
+	)
+	
+	// 保存用户消息到聊天记录
+	if meta.Mode == relaymode.ChatCompletions && len(textRequest.Messages) > 0 {
+		// 解析用户消息和系统消息
+		var userContent, systemContent strings.Builder
+		for _, msg := range textRequest.Messages {
+			switch msg.Role {
+			case model.ChatRoleUser:
+				userContent.WriteString(msg.StringContent())
+				userContent.WriteString("\n")
+			case model.ChatRoleSystem:
+				systemContent.WriteString(msg.StringContent())
+				systemContent.WriteString("\n")
+			}
+		}
+		
+		// 保存系统消息
+		if systemContent.Len() > 0 {
+			model.SaveChatRecordAsync(chatService, strings.TrimSpace(systemContent.String()), model.ChatRoleSystem, 0, 0, 0, model.ChatRecordStatusSuccess, "")
+		}
+		
+		// 保存用户消息
+		if userContent.Len() > 0 {
+			model.SaveChatRecordAsync(chatService, strings.TrimSpace(userContent.String()), model.ChatRoleUser, 0, 0, 0, model.ChatRecordStatusSuccess, "")
+		}
+	}
+	
 	// set system prompt if not empty
 	systemPromptReset := setSystemPrompt(ctx, textRequest, meta.ForcedSystemPrompt)
 	// get model ratio & group ratio
@@ -80,14 +121,32 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	if respErr != nil {
 		logger.Errorf(ctx, "respErr is not nil: %+v", respErr)
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
+		
+		// 保存失败的聊天记录
+		if meta.Mode == relaymode.ChatCompletions {
+			errorMsg := ""
+			if respErr != nil {
+				errorMsg = respErr.Message
+			}
+			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusFailed, errorMsg)
+		}
+		
 		return respErr
 	}
+	
+	// 保存成功的助手回复到聊天记录
+	if meta.Mode == relaymode.ChatCompletions {
+		// 注意：这里我们无法直接获取响应内容，因为DoResponse已经将内容发送给客户端
+		// 在实际应用中，可能需要修改DoResponse方法来返回响应内容
+		model.SaveChatRecordAsync(chatService, "[响应已发送]", model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusSuccess, "")
+	}
+	
 	// post-consume quota
 	go postConsumeQuota(ctx, usage, meta, textRequest, ratio, preConsumedQuota, modelRatio, groupRatio, systemPromptReset)
 	return nil
 }
 
-func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model.GeneralOpenAIRequest, adaptor adaptor.Adaptor) (io.Reader, error) {
+func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, adaptor adaptor.Adaptor) (io.Reader, error) {
 	if !config.EnforceIncludeUsage &&
 		meta.APIType == apitype.OpenAI &&
 		meta.OriginModelName == meta.ActualModelName &&

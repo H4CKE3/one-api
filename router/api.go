@@ -117,5 +117,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			groupRoute.GET("/", controller.GetGroups)
 		}
+		
+		// 聊天记录路由
+		SetChatRecordRouter(apiRouter)
 	}
 }
