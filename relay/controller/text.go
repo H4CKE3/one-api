@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/songquanpeng/one-api/common/config"
+	"github.com/songquanpeng/one-api/common/ctxkey"
+	"github.com/songquanpeng/one-api/common/helper"
 	"github.com/songquanpeng/one-api/common/logger"
 	"github.com/songquanpeng/one-api/model"
 	"github.com/songquanpeng/one-api/relay"
@@ -46,12 +48,10 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 		meta.UserId,
 		meta.TokenId,
 		meta.ChannelId,
-		//TODO 完成渠道name的获取操作
-		"", // ChannelName 暂时为空，可以从渠道配置中获取
+		c.GetString(ctxkey.ChannelName), // 从上下文获取渠道名称
 		meta.APIType,
 		meta.ActualModelName,
-		//TODO 完成请求ID获取操作
-		"", // RequestId 暂时为空
+		c.GetString(helper.RequestIdKey), // 从上下文获取请求ID
 	)
 
 	// 保存用户消息到聊天记录
