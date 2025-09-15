@@ -15,7 +15,7 @@ import (
 
 type AwsAdapter interface {
 	ConvertRequest(c *gin.Context, relayMode int, request *model.GeneralOpenAIRequest) (any, error)
-	DoResponse(c *gin.Context, awsCli *bedrockruntime.Client, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode)
+	DoResponse(c *gin.Context, awsCli *bedrockruntime.Client, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode)
 }
 
 type Adaptor struct {

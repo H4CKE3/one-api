@@ -28,7 +28,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 	return nil, errors.New("notimplement")
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode) {
 	for k, v := range resp.Header {
 		for _, vv := range v {
 			c.Writer.Header().Set(k, vv)
@@ -37,7 +37,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 
 	c.Writer.WriteHeader(resp.StatusCode)
 	if _, gerr := io.Copy(c.Writer, resp.Body); gerr != nil {
-		return nil, &relaymodel.ErrorWithStatusCode{
+		return nil, "", &relaymodel.ErrorWithStatusCode{
 			StatusCode: http.StatusInternalServerError,
 			Error: relaymodel.Error{
 				Message: gerr.Error(),
@@ -45,7 +45,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 		}
 	}
 
-	return nil, nil
+	return nil, "", nil
 }
 
 func (a *Adaptor) GetModelList() (models []string) {

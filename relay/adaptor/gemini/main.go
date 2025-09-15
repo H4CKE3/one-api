@@ -356,19 +356,19 @@ func StreamHandler(c *gin.Context, resp *http.Response) (*model.ErrorWithStatusC
 	return nil, responseText
 }
 
-func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model.ErrorWithStatusCode, *model.Usage) {
+func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model.ErrorWithStatusCode, *model.Usage, string) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return openai.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	err = resp.Body.Close()
 	if err != nil {
-		return openai.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	var geminiResponse ChatResponse
 	err = json.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
-		return openai.ErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	if len(geminiResponse.Candidates) == 0 {
 		return &model.ErrorWithStatusCode{
@@ -379,11 +379,15 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 				Code:    500,
 			},
 			StatusCode: resp.StatusCode,
-		}, nil
+		}, nil, ""
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(&geminiResponse)
 	fullTextResponse.Model = modelName
-	completionTokens := openai.CountTokenText(geminiResponse.GetResponseText(), modelName)
+	
+	// 提取响应内容
+	responseText := geminiResponse.GetResponseText()
+	
+	completionTokens := openai.CountTokenText(responseText, modelName)
 	usage := model.Usage{
 		PromptTokens:     promptTokens,
 		CompletionTokens: completionTokens,
@@ -392,27 +396,27 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	fullTextResponse.Usage = usage
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {
-		return openai.ErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, err = c.Writer.Write(jsonResponse)
-	return nil, &usage
+	return nil, &usage, responseText
 }
 
-func EmbeddingHandler(c *gin.Context, resp *http.Response) (*model.ErrorWithStatusCode, *model.Usage) {
+func EmbeddingHandler(c *gin.Context, resp *http.Response) (*model.ErrorWithStatusCode, *model.Usage, string) {
 	var geminiEmbeddingResponse EmbeddingResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return openai.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	err = resp.Body.Close()
 	if err != nil {
-		return openai.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	err = json.Unmarshal(responseBody, &geminiEmbeddingResponse)
 	if err != nil {
-		return openai.ErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	if geminiEmbeddingResponse.Error != nil {
 		return &model.ErrorWithStatusCode{
@@ -423,15 +427,15 @@ func EmbeddingHandler(c *gin.Context, resp *http.Response) (*model.ErrorWithStat
 				Code:    geminiEmbeddingResponse.Error.Code,
 			},
 			StatusCode: resp.StatusCode,
-		}, nil
+		}, nil, ""
 	}
 	fullTextResponse := embeddingResponseGemini2OpenAI(&geminiEmbeddingResponse)
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {
-		return openai.ErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil
+		return openai.ErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError), nil, ""
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, err = c.Writer.Write(jsonResponse)
-	return nil, &fullTextResponse.Usage
+	return nil, &fullTextResponse.Usage, ""
 }

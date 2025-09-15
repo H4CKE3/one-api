@@ -15,7 +15,7 @@ type Adaptor interface {
 	ConvertRequest(c *gin.Context, relayMode int, request *model.GeneralOpenAIRequest) (any, error)
 	ConvertImageRequest(request *model.ImageRequest) (any, error)
 	DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Reader) (*http.Response, error)
-	DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode)
+	DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode)
 	GetModelList() []string
 	GetChannelName() string
 }

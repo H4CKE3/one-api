@@ -143,7 +143,7 @@ func testChannel(ctx context.Context, channel *model.Channel, request *relaymode
 		}
 		return "", fmt.Errorf("http status code: %d%s", resp.StatusCode, errorMessage), &err.Error
 	}
-	usage, respErr := adaptor.DoResponse(c, resp, meta)
+	usage, _, respErr := adaptor.DoResponse(c, resp, meta)
 	if respErr != nil {
 		return "", fmt.Errorf("%s", respErr.Error.Message), &respErr.Error
 	}

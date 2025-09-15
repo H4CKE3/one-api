@@ -27,7 +27,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 	return claudeReq, nil
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, awsCli *bedrockruntime.Client, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, awsCli *bedrockruntime.Client, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode) {
 	if meta.IsStream {
 		err, usage = StreamHandler(c, awsCli)
 	} else {

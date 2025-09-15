@@ -100,12 +100,12 @@ func (a *Adaptor) DoResponseV4(c *gin.Context, resp *http.Response, meta *meta.M
 	if meta.IsStream {
 		err, _, usage = openai.StreamHandler(c, resp, meta.Mode)
 	} else {
-		err, usage = openai.Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		err, usage, _ = openai.Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
 	}
 	return
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode) {
 	switch meta.Mode {
 	case relaymode.Embeddings:
 		err, usage = EmbeddingsHandler(c, resp)
@@ -115,7 +115,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 		return
 	}
 	if a.APIVersion == "v4" {
-		return a.DoResponseV4(c, resp, meta)
+		usage, err = a.DoResponseV4(c, resp, meta)
+		return
 	}
 	if meta.IsStream {
 		err, usage = StreamHandler(c, resp)

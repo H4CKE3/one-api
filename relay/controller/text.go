@@ -117,7 +117,7 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	}
 
 	// do response
-	usage, respErr := adaptor.DoResponse(c, resp, meta)
+	usage, responseText, respErr := adaptor.DoResponse(c, resp, meta)
 	if respErr != nil {
 		logger.Errorf(ctx, "respErr is not nil: %+v", respErr)
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
@@ -136,9 +136,8 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	
 	// 保存成功的助手回复到聊天记录
 	if meta.Mode == relaymode.ChatCompletions {
-		// 注意：这里我们无法直接获取响应内容，因为DoResponse已经将内容发送给客户端
-		// 在实际应用中，可能需要修改DoResponse方法来返回响应内容
-		model.SaveChatRecordAsync(chatService, "[响应已发送]", model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusSuccess, "")
+		// 使用实际的AI回复内容
+		model.SaveChatRecordAsync(chatService, responseText, model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusSuccess, "")
 	}
 	
 	// post-consume quota

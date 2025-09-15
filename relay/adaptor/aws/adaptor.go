@@ -46,9 +46,9 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 	return adaptor.ConvertRequest(c, relayMode, request)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode) {
 	if a.awsAdapter == nil {
-		return nil, utils.WrapErr(errors.New("awsAdapter is nil"))
+		return nil, "", utils.WrapErr(errors.New("awsAdapter is nil"))
 	}
 	return a.awsAdapter.DoResponse(c, a.AwsClient, meta)
 }

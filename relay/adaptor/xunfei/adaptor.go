@@ -53,13 +53,13 @@ func (a *Adaptor) DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Read
 	return dummyResp, nil
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode) {
 	splits := strings.Split(meta.APIKey, "|")
 	if len(splits) != 3 {
-		return nil, openai.ErrorWrapper(errors.New("invalid auth"), "invalid_auth", http.StatusBadRequest)
+		return nil, "", openai.ErrorWrapper(errors.New("invalid auth"), "invalid_auth", http.StatusBadRequest)
 	}
 	if a.request == nil {
-		return nil, openai.ErrorWrapper(errors.New("request is nil"), "request_is_nil", http.StatusBadRequest)
+		return nil, "", openai.ErrorWrapper(errors.New("request is nil"), "request_is_nil", http.StatusBadRequest)
 	}
 	version := parseAPIVersionByModelName(meta.ActualModelName)
 	if version == "" {
