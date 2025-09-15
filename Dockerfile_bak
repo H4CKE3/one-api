@@ -2,12 +2,20 @@ FROM node:16 AS builder
 
 WORKDIR /web
 COPY ./VERSION .
-COPY ./web .
 
+# 先复制package.json文件，利用Docker层缓存
+COPY ./web/default/package*.json ./web/default/
+COPY ./web/berry/package*.json ./web/berry/
+COPY ./web/air/package*.json ./web/air/
+
+# 安装依赖（这层会被缓存，除非package.json改变）
 RUN npm install --legacy-peer-deps --prefix /web/default & \
     npm install --legacy-peer-deps --prefix /web/berry & \
     npm install --legacy-peer-deps --prefix /web/air & \
     wait
+
+# 然后复制源代码
+COPY ./web .
 
 RUN DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/default & \
     DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/berry & \
@@ -16,6 +24,7 @@ RUN DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run buil
 
 FROM golang:alpine AS builder2
 
+# 安装系统依赖（这层会被缓存）
 RUN apk add --no-cache \
     gcc \
     musl-dev \
@@ -31,6 +40,7 @@ WORKDIR /build
 ADD go.mod go.sum ./
 RUN go mod download
 
+# 复制源代码（除了web目录，因为web已经在前一个阶段构建）
 COPY . .
 COPY --from=builder /web/build ./web/build
 
