@@ -40,18 +40,20 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	meta.OriginModelName = textRequest.Model
 	textRequest.Model, _ = getMappedModelName(textRequest.Model, meta.ModelMapping)
 	meta.ActualModelName = textRequest.Model
-	
+
 	// 创建聊天记录服务
 	chatService := model.NewChatRecordService(
 		meta.UserId,
 		meta.TokenId,
 		meta.ChannelId,
+		//TODO 完成渠道name的获取操作
 		"", // ChannelName 暂时为空，可以从渠道配置中获取
 		meta.APIType,
 		meta.ActualModelName,
+		//TODO 完成请求ID获取操作
 		"", // RequestId 暂时为空
 	)
-	
+
 	// 保存用户消息到聊天记录
 	if meta.Mode == relaymode.ChatCompletions && len(textRequest.Messages) > 0 {
 		// 解析用户消息和系统消息
@@ -66,18 +68,18 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 				systemContent.WriteString("\n")
 			}
 		}
-		
+
 		// 保存系统消息
 		if systemContent.Len() > 0 {
 			model.SaveChatRecordAsync(chatService, strings.TrimSpace(systemContent.String()), model.ChatRoleSystem, 0, 0, 0, model.ChatRecordStatusSuccess, "")
 		}
-		
+
 		// 保存用户消息
 		if userContent.Len() > 0 {
 			model.SaveChatRecordAsync(chatService, strings.TrimSpace(userContent.String()), model.ChatRoleUser, 0, 0, 0, model.ChatRecordStatusSuccess, "")
 		}
 	}
-	
+
 	// set system prompt if not empty
 	systemPromptReset := setSystemPrompt(ctx, textRequest, meta.ForcedSystemPrompt)
 	// get model ratio & group ratio
@@ -121,7 +123,7 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	if respErr != nil {
 		logger.Errorf(ctx, "respErr is not nil: %+v", respErr)
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
-		
+
 		// 保存失败的聊天记录
 		if meta.Mode == relaymode.ChatCompletions {
 			errorMsg := ""
@@ -130,16 +132,16 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 			}
 			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusFailed, errorMsg)
 		}
-		
+
 		return respErr
 	}
-	
+
 	// 保存成功的助手回复到聊天记录
 	if meta.Mode == relaymode.ChatCompletions {
 		// 使用实际的AI回复内容
 		model.SaveChatRecordAsync(chatService, responseText, model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusSuccess, "")
 	}
-	
+
 	// post-consume quota
 	go postConsumeQuota(ctx, usage, meta, textRequest, ratio, preConsumedQuota, modelRatio, groupRatio, systemPromptReset)
 	return nil

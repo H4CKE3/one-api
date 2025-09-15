@@ -7,7 +7,7 @@ response = requests.post(
     json={
         # "model": "gemini-1.5-flash",
         "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": "你不需要做任何处理和思考，直接回答我'1-8'其中一个数字就可以了。"}]
+        "messages": [{"role": "user", "content": "你是什么大模型，介绍一下自己"}]
     }
 )
 
