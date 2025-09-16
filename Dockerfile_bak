@@ -1,18 +1,21 @@
-FROM node:16 AS builder
+FROM --platform=$BUILDPLATFORM node:18.18.0 AS builder
 
 WORKDIR /web
 COPY ./VERSION .
 COPY ./web .
 
-RUN npm install --prefix /web/default & \
-    npm install --prefix /web/berry & \
-    npm install --prefix /web/air & \
-    wait
+# 安装依赖并修复 ajv 问题
+RUN cd /web/default && npm install --legacy-peer-deps --force && \
+    npm install ajv@^8.0.0 --save-dev --force
+RUN cd /web/berry && npm install --legacy-peer-deps --force && \
+    npm install ajv@^8.0.0 --save-dev --force
+RUN cd /web/air && npm install --legacy-peer-deps --force && \
+    npm install ajv@^8.0.0 --save-dev --force
 
-RUN DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/default & \
-    DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/berry & \
-    DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/air & \
-    wait
+# 构建前端
+RUN cd /web/default && DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat /web/VERSION) npm run build
+RUN cd /web/berry && DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat /web/VERSION) npm run build
+RUN cd /web/air && DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat /web/VERSION) npm run build
 
 FROM golang:alpine AS builder2
 
