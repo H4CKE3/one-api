@@ -2,8 +2,8 @@ import requests
 
 # 发送请求
 response = requests.post(
-    "http://localhost:3000/v1/chat/completions",
-    headers={"Authorization": "Bearer sk-cFlmQUgFBMyoPR6z7c70Ad22108640568c64D75eFaBf64B3"},
+    "https://one-api-test-171420155991.asia-northeast1.run.app/v1/chat/completions",
+    headers={"Authorization": "Bearer sk-IREADznpqw6FioxV41A54dF3F7504dF3Ba7b02Cc6b0844C7"},
     json={
         "model": "gemini-1.5-flash",
         # "model": "deepseek-chat",
