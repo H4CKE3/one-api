@@ -21,6 +21,9 @@ type StreamOptions struct {
 	IncludeUsage bool `json:"include_usage,omitempty"`
 }
 
+type Thinking struct {
+	Type string `json:"type,omitempty"`
+}
 type GeneralOpenAIRequest struct {
 	// https://platform.openai.com/docs/api-reference/chat/create
 	Messages            []Message       `json:"messages,omitempty"`
@@ -52,6 +55,7 @@ type GeneralOpenAIRequest struct {
 	ToolChoice          any             `json:"tool_choice,omitempty"`
 	ParallelTooCalls    *bool           `json:"parallel_tool_calls,omitempty"`
 	User                string          `json:"user,omitempty"`
+	Thinking            *Thinking       `json:"thinking,omitempty"`
 	FunctionCall        any             `json:"function_call,omitempty"`
 	Functions           any             `json:"functions,omitempty"`
 	// https://platform.openai.com/docs/api-reference/embeddings/create
