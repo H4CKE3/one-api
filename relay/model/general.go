@@ -24,6 +24,22 @@ type StreamOptions struct {
 type Thinking struct {
 	Type string `json:"type,omitempty"`
 }
+
+type ThinkingConfig struct {
+	ThinkingBudget int `json:"thinkingBudget,omitempty"`
+}
+
+type GenerationConfig struct {
+	ThinkingConfig *ThinkingConfig `json:"thinkingConfig,omitempty"`
+}
+
+type SystemInstructionPart struct {
+	Text string `json:"text,omitempty"`
+}
+
+type SystemInstruction struct {
+	Parts []SystemInstructionPart `json:"parts,omitempty"`
+}
 type GeneralOpenAIRequest struct {
 	// https://platform.openai.com/docs/api-reference/chat/create
 	Messages            []Message       `json:"messages,omitempty"`
@@ -70,6 +86,8 @@ type GeneralOpenAIRequest struct {
 	// Others
 	Instruction string `json:"instruction,omitempty"`
 	NumCtx      int    `json:"num_ctx,omitempty"`
+	GenerationConfig   *GenerationConfig  `json:"generationConfig,omitempty"`
+	SystemInstruction  *SystemInstruction `json:"system_instruction,omitempty"`
 }
 
 func (r GeneralOpenAIRequest) ParseInput() []string {
