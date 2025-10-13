@@ -26,11 +26,16 @@ type Thinking struct {
 }
 
 type ThinkingConfig struct {
-	ThinkingBudget int `json:"thinkingBudget,omitempty"`
+	ThinkingBudget string `json:"thinkingBudget,omitempty"`
 }
 
 type GenerationConfig struct {
 	ThinkingConfig *ThinkingConfig `json:"thinkingConfig,omitempty"`
+}
+
+type Config struct {
+	ResponseMimeType string      `json:"response_mime_type,omitempty"`
+	ResponseSchema   interface{} `json:"response_schema,omitempty"`
 }
 
 type SystemInstructionPart struct {
@@ -87,7 +92,8 @@ type GeneralOpenAIRequest struct {
 	Instruction string `json:"instruction,omitempty"`
 	NumCtx      int    `json:"num_ctx,omitempty"`
 	GenerationConfig   *GenerationConfig  `json:"generationConfig,omitempty"`
-	SystemInstruction  *SystemInstruction `json:"system_instruction,omitempty"`
+	SystemInstructions *SystemInstruction `json:"system_instructions,omitempty"`
+	Config             *Config            `json:"config,omitempty"`
 }
 
 func (r GeneralOpenAIRequest) ParseInput() []string {
