@@ -26,7 +26,7 @@ type Thinking struct {
 }
 
 type ThinkingConfig struct {
-	ThinkingBudget string `json:"thinkingBudget,omitempty"`
+	ThinkingBudget int `json:"thinkingBudget,omitempty"`
 }
 
 type GenerationConfig struct {
