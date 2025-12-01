@@ -7,12 +7,12 @@ echo "One API 快速更新部署脚本"
 echo "================================"
 echo ""
 
-echo "1. 拉取最新代码..."
-git pull origin
+echo "1. 切换到 build/local-docker 分支..."
+git checkout build/local-docker
 
 echo ""
-echo "2. 切换到 main 分支..."
-git checkout build/local-docker
+echo "2. 拉取最新代码..."
+git pull origin build/local-docker
 
 echo ""
 echo "3. 停止并删除旧容器..."
