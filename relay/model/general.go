@@ -89,8 +89,8 @@ type GeneralOpenAIRequest struct {
 	Size    string  `json:"size,omitempty"`
 	Style   *string `json:"style,omitempty"`
 	// Others
-	Instruction string `json:"instruction,omitempty"`
-	NumCtx      int    `json:"num_ctx,omitempty"`
+	Instruction        string             `json:"instruction,omitempty"`
+	NumCtx             int                `json:"num_ctx,omitempty"`
 	GenerationConfig   *GenerationConfig  `json:"generationConfig,omitempty"`
 	SystemInstructions *SystemInstruction `json:"system_instructions,omitempty"`
 	Config             *Config            `json:"config,omitempty"`

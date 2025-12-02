@@ -75,6 +75,12 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 			geminiRequest.GenerationConfig.ResponseMimeType = mimeTypeMap["json_object"]
 		}
 	}
+	// 处理 thinking_budget 配置
+	if textRequest.GenerationConfig != nil && textRequest.GenerationConfig.ThinkingConfig != nil && textRequest.GenerationConfig.ThinkingConfig.ThinkingBudget > 0 {
+		geminiRequest.GenerationConfig.ThinkingConfig = &ThinkingConfig{
+			ThinkingBudget: textRequest.GenerationConfig.ThinkingConfig.ThinkingBudget,
+		}
+	}
 	if textRequest.Tools != nil {
 		functions := make([]model.Function, 0, len(textRequest.Tools))
 		for _, tool := range textRequest.Tools {
@@ -383,10 +389,10 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(&geminiResponse)
 	fullTextResponse.Model = modelName
-	
+
 	// 提取响应内容
 	responseText := geminiResponse.GetResponseText()
-	
+
 	completionTokens := openai.CountTokenText(responseText, modelName)
 	usage := model.Usage{
 		PromptTokens:     promptTokens,
