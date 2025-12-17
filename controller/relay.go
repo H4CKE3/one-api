@@ -54,6 +54,8 @@ func Relay(c *gin.Context) {
 	bizErr := relayHelper(c, relayMode)
 	if bizErr == nil {
 		monitor.Emit(channelId, true)
+		// 更新渠道统计：成功请求
+		go dbmodel.UpdateChannelRequestCount(channelId, false)
 		return
 	}
 	lastFailedChannelId := channelId
@@ -123,6 +125,8 @@ func shouldRetry(c *gin.Context, statusCode int) bool {
 
 func processChannelRelayError(ctx context.Context, userId int, channelId int, channelName string, err model.ErrorWithStatusCode) {
 	logger.Errorf(ctx, "relay error (channel id %d, user id: %d): %s", channelId, userId, err.Message)
+	// 更新渠道统计：错误请求
+	dbmodel.UpdateChannelRequestCount(channelId, true)
 	// https://platform.openai.com/docs/guides/error-codes/api-errors
 	if monitor.ShouldDisableChannel(&err.Error, err.StatusCode) {
 		monitor.DisableChannel(channelId, channelName, err.Message)

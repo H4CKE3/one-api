@@ -111,11 +111,29 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	resp, err := adaptor.DoRequest(c, meta, requestBody)
 	if err != nil {
 		logger.Errorf(ctx, "DoRequest failed: %s", err.Error())
-		return openai.ErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		bizErr := openai.ErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		
+		// 保存失败的聊天记录
+		if meta.Mode == relaymode.ChatCompletions {
+			errorMsg := fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s", 
+				bizErr.StatusCode, bizErr.Error.Type, bizErr.Error.Code, bizErr.Error.Param, bizErr.Error.Message)
+			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, 0, 0, 0, model.ChatRecordStatusFailed, errorMsg)
+		}
+		
+		return bizErr
 	}
 	if isErrorHappened(meta, resp) {
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
-		return RelayErrorHandler(resp)
+		relayErr := RelayErrorHandler(resp)
+		
+		// 保存失败的聊天记录
+		if meta.Mode == relaymode.ChatCompletions {
+			errorMsg := fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s", 
+				relayErr.StatusCode, relayErr.Error.Type, relayErr.Error.Code, relayErr.Error.Param, relayErr.Error.Message)
+			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, 0, 0, 0, model.ChatRecordStatusFailed, errorMsg)
+		}
+		
+		return relayErr
 	}
 
 	// do response
@@ -128,7 +146,9 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 		if meta.Mode == relaymode.ChatCompletions {
 			errorMsg := ""
 			if respErr != nil {
-				errorMsg = respErr.Message
+				// 将详细错误信息合并到 error_message
+				errorMsg = fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s", 
+					respErr.StatusCode, respErr.Error.Type, respErr.Error.Code, respErr.Error.Param, respErr.Error.Message)
 			}
 			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusFailed, errorMsg)
 		}

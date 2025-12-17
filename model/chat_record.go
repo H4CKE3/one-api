@@ -23,7 +23,7 @@ type ChatRecord struct {
 	RequestId        string `json:"request_id" gorm:"type:varchar(128);index"`     // 请求ID，用于追踪
 	ResponseTime     int    `json:"response_time" gorm:"default:0"`                // 响应时间(毫秒)
 	Status           int    `json:"status" gorm:"default:1"`                       // 状态：1-成功，2-失败，3-部分成功
-	ErrorMessage     string `json:"error_message" gorm:"type:text"`                // 错误信息
+	ErrorMessage     string `json:"error_message" gorm:"type:text"`                // 错误信息（包含详细错误日志）
 	CreatedTime      int64  `json:"created_time" gorm:"bigint;not null;index"`     // 创建时间
 	UpdatedTime      int64  `json:"updated_time" gorm:"bigint;not null"`           // 更新时间
 }
@@ -142,6 +142,27 @@ func SearchChatRecords(userId int, keyword string, startIdx int, num int) ([]*Ch
 
 	err := query.Order("created_time desc").Limit(num).Offset(startIdx).Find(&records).Error
 	return records, err
+}
+
+// GetErrorChatRecordsByChannelId 根据渠道ID获取错误聊天记录
+func GetErrorChatRecordsByChannelId(channelId int, startIdx int, num int) ([]*ChatRecord, int64, error) {
+	var records []*ChatRecord
+	var total int64
+	
+	// 获取总数
+	err := DB.Model(&ChatRecord{}).Where("channel_id = ? AND status = ?", channelId, ChatRecordStatusFailed).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// 获取分页数据
+	err = DB.Where("channel_id = ? AND status = ?", channelId, ChatRecordStatusFailed).
+		Order("created_time desc").
+		Limit(num).
+		Offset(startIdx).
+		Find(&records).Error
+	
+	return records, total, err
 }
 
 // GetRecentConversations 获取用户最近的会话列表

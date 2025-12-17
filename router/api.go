@@ -75,6 +75,8 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/search", controller.SearchChannels)
 			channelRoute.GET("/models", controller.ListAllModels)
 			channelRoute.GET("/:id", controller.GetChannel)
+			channelRoute.GET("/:id/error_records", controller.GetChannelErrorRecords)
+			channelRoute.GET("/conversation/:conversation_id", controller.GetConversationRecords)
 			channelRoute.GET("/test", controller.TestChannels)
 			channelRoute.GET("/test/:id", controller.TestChannel)
 			channelRoute.GET("/update_balance", controller.UpdateAllChannelsBalance)
@@ -117,7 +119,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			groupRoute.GET("/", controller.GetGroups)
 		}
-		
+
 		// 聊天记录路由
 		SetChatRecordRouter(apiRouter)
 	}

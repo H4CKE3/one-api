@@ -38,6 +38,8 @@ type Channel struct {
 	Priority           *int64  `json:"priority" gorm:"bigint;default:0"`
 	Config             string  `json:"config"`
 	SystemPrompt       *string `json:"system_prompt" gorm:"type:text"`
+	ErrorCount         int64   `json:"error_count" gorm:"bigint;default:0"`  // 错误请求次数
+	TotalCount         int64   `json:"total_count" gorm:"bigint;default:0"`  // 总请求次数
 }
 
 type ChannelConfig struct {
@@ -221,4 +223,18 @@ func DeleteChannelByStatus(status int64) (int64, error) {
 func DeleteDisabledChannel() (int64, error) {
 	result := DB.Where("status = ? or status = ?", ChannelStatusAutoDisabled, ChannelStatusManuallyDisabled).Delete(&Channel{})
 	return result.RowsAffected, result.Error
+}
+
+// UpdateChannelRequestCount 更新渠道请求统计
+func UpdateChannelRequestCount(id int, isError bool) {
+	updates := map[string]interface{}{
+		"total_count": gorm.Expr("total_count + ?", 1),
+	}
+	if isError {
+		updates["error_count"] = gorm.Expr("error_count + ?", 1)
+	}
+	err := DB.Model(&Channel{}).Where("id = ?", id).Updates(updates).Error
+	if err != nil {
+		logger.SysError("failed to update channel request count: " + err.Error())
+	}
 }

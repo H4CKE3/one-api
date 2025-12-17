@@ -1,7 +1,18 @@
-import React, {useEffect, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {Button, Dropdown, Form, Input, Label, Message, Pagination, Popup, Table,} from 'semantic-ui-react';
-import {Link} from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Button,
+  Dropdown,
+  Form,
+  Input,
+  Label,
+  Message,
+  Modal,
+  Pagination,
+  Popup,
+  Table,
+} from 'semantic-ui-react';
+import { Link } from 'react-router-dom';
 import {
   API,
   loadChannelModels,
@@ -13,8 +24,8 @@ import {
   timestamp2string,
 } from '../helpers';
 
-import {CHANNEL_OPTIONS, ITEMS_PER_PAGE} from '../constants';
-import {renderGroup, renderNumber} from '../helpers/render';
+import { CHANNEL_OPTIONS, ITEMS_PER_PAGE } from '../constants';
+import { renderGroup, renderNumber } from '../helpers/render';
 
 function renderTimestamp(timestamp) {
   return <>{timestamp2string(timestamp)}</>;
@@ -44,9 +55,9 @@ function renderType(type, t) {
 function renderBalance(type, balance, t) {
   switch (type) {
     case 1: // OpenAI
-        if (balance === 0) {
-            return <span>{t('channel.table.balance_not_supported')}</span>;
-        }
+      if (balance === 0) {
+        return <span>{t('channel.table.balance_not_supported')}</span>;
+      }
       return <span>${balance.toFixed(2)}</span>;
     case 4: // CloseAI
       return <span>¥{balance.toFixed(2)}</span>;
@@ -87,6 +98,19 @@ const ChannelsTable = () => {
   const [updatingBalance, setUpdatingBalance] = useState(false);
   const [showPrompt, setShowPrompt] = useState(shouldShowPrompt(promptID));
   const [showDetail, setShowDetail] = useState(isShowDetail());
+
+  // 错误记录相关状态
+  const [errorRecordsModalOpen, setErrorRecordsModalOpen] = useState(false);
+  const [selectedChannelId, setSelectedChannelId] = useState(null);
+  const [selectedChannelName, setSelectedChannelName] = useState('');
+  const [errorRecords, setErrorRecords] = useState([]);
+  const [errorRecordsLoading, setErrorRecordsLoading] = useState(false);
+  const [errorRecordsPage, setErrorRecordsPage] = useState(1);
+  const [errorRecordsTotal, setErrorRecordsTotal] = useState(0);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [conversationRecords, setConversationRecords] = useState([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
 
   const processChannelData = (channel) => {
     if (channel.models === '') {
@@ -410,8 +434,418 @@ const ChannelsTable = () => {
     setLoading(false);
   };
 
+  // 获取渠道错误记录
+  const loadErrorRecords = async (channelId, page) => {
+    setErrorRecordsLoading(true);
+    try {
+      const res = await API.get(
+        `/api/channel/${channelId}/error_records?p=${page - 1}`
+      );
+      const { success, message, data, total } = res.data;
+      if (success) {
+        setErrorRecords(data || []);
+        setErrorRecordsTotal(total || 0);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError('加载错误记录失败');
+    }
+    setErrorRecordsLoading(false);
+  };
+
+  // 打开错误记录弹窗
+  const openErrorRecordsModal = (channelId, channelName) => {
+    setSelectedChannelId(channelId);
+    setSelectedChannelName(channelName);
+    setErrorRecordsPage(1);
+    setErrorRecordsModalOpen(true);
+    loadErrorRecords(channelId, 1);
+  };
+
+  // 关闭错误记录弹窗
+  const closeErrorRecordsModal = () => {
+    setErrorRecordsModalOpen(false);
+    setSelectedChannelId(null);
+    setSelectedChannelName('');
+    setErrorRecords([]);
+  };
+
+  // 获取会话所有记录
+  const loadConversationRecords = async (conversationId) => {
+    setConversationLoading(true);
+    try {
+      const res = await API.get(`/api/channel/conversation/${conversationId}`);
+      const { success, message, data } = res.data;
+      if (success) {
+        setConversationRecords(data || []);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError('加载会话记录失败');
+    }
+    setConversationLoading(false);
+  };
+
+  // 打开详情弹窗
+  const openDetailModal = (record) => {
+    setSelectedRecord(record);
+    setDetailModalOpen(true);
+    // 加载该会话的所有记录
+    if (record.conversation_id) {
+      loadConversationRecords(record.conversation_id);
+    }
+  };
+
+  // 关闭详情弹窗
+  const closeDetailModal = () => {
+    setDetailModalOpen(false);
+    setSelectedRecord(null);
+    setConversationRecords([]);
+  };
+
+  // 错误记录分页变化
+  const onErrorRecordsPageChange = (e, { activePage }) => {
+    setErrorRecordsPage(activePage);
+    loadErrorRecords(selectedChannelId, activePage);
+  };
+
   return (
     <>
+      {/* 错误记录列表弹窗 */}
+      <Modal
+        open={errorRecordsModalOpen}
+        onClose={closeErrorRecordsModal}
+        size='large'
+      >
+        <Modal.Header>渠道错误记录 - {selectedChannelName}</Modal.Header>
+        <Modal.Content scrolling>
+          {errorRecordsLoading ? (
+            <Message>加载中...</Message>
+          ) : errorRecords.length === 0 ? (
+            <Message>暂无错误记录</Message>
+          ) : (
+            <Table celled>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>ID</Table.HeaderCell>
+                  <Table.HeaderCell>用户ID</Table.HeaderCell>
+                  <Table.HeaderCell>模型</Table.HeaderCell>
+                  <Table.HeaderCell>错误信息</Table.HeaderCell>
+                  <Table.HeaderCell>创建时间</Table.HeaderCell>
+                  <Table.HeaderCell>操作</Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {errorRecords.map((record) => (
+                  <Table.Row key={record.id}>
+                    <Table.Cell>{record.id}</Table.Cell>
+                    <Table.Cell>{record.user_id}</Table.Cell>
+                    <Table.Cell>{record.model}</Table.Cell>
+                    <Table.Cell>
+                      {record.error_message || '无错误信息'}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {timestamp2string(record.created_time)}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Button
+                        size='tiny'
+                        primary
+                        onClick={() => openDetailModal(record)}
+                      >
+                        详情
+                      </Button>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+              <Table.Footer>
+                <Table.Row>
+                  <Table.HeaderCell colSpan='6'>
+                    <Pagination
+                      floated='right'
+                      activePage={errorRecordsPage}
+                      onPageChange={onErrorRecordsPageChange}
+                      size='tiny'
+                      totalPages={Math.ceil(errorRecordsTotal / ITEMS_PER_PAGE)}
+                    />
+                    <span>总计: {errorRecordsTotal} 条错误记录</span>
+                  </Table.HeaderCell>
+                </Table.Row>
+              </Table.Footer>
+            </Table>
+          )}
+        </Modal.Content>
+        <Modal.Actions>
+          <Button onClick={closeErrorRecordsModal}>关闭</Button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* 错误记录详情弹窗 */}
+      <Modal open={detailModalOpen} onClose={closeDetailModal} size='large'>
+        <Modal.Header>
+          会话详情 - {selectedRecord?.conversation_id}
+        </Modal.Header>
+        <Modal.Content scrolling>
+          {selectedRecord && (
+            <div>
+              {/* 基本信息 */}
+              <div
+                style={{
+                  padding: '15px',
+                  background: '#f8f9fa',
+                  borderRadius: '6px',
+                  marginBottom: '20px',
+                }}
+              >
+                <h4 style={{ marginTop: 0 }}>基本信息</h4>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '10px',
+                    fontSize: '14px',
+                  }}
+                >
+                  <div>
+                    <strong>记录ID:</strong> {selectedRecord.id}
+                  </div>
+                  <div>
+                    <strong>用户ID:</strong> {selectedRecord.user_id}
+                  </div>
+                  <div>
+                    <strong>Token ID:</strong> {selectedRecord.token_id}
+                  </div>
+                  <div>
+                    <strong>会话ID:</strong> {selectedRecord.conversation_id}
+                  </div>
+                  <div>
+                    <strong>模型:</strong> {selectedRecord.model}
+                  </div>
+                  <div>
+                    <strong>渠道:</strong> {selectedRecord.channel_name} (ID:{' '}
+                    {selectedRecord.channel_id})
+                  </div>
+                  <div>
+                    <strong>API类型:</strong> {selectedRecord.api_type}
+                  </div>
+                  <div>
+                    <strong>请求ID:</strong> {selectedRecord.request_id}
+                  </div>
+                  <div>
+                    <strong>Prompt Tokens:</strong>{' '}
+                    {selectedRecord.prompt_tokens}
+                  </div>
+                  <div>
+                    <strong>Completion Tokens:</strong>{' '}
+                    {selectedRecord.completion_tokens}
+                  </div>
+                  <div>
+                    <strong>Total Tokens:</strong> {selectedRecord.total_tokens}
+                  </div>
+                  <div>
+                    <strong>消耗额度:</strong> {selectedRecord.cost}
+                  </div>
+                  <div>
+                    <strong>响应时间:</strong> {selectedRecord.response_time}ms
+                  </div>
+                  <div>
+                    <strong>状态:</strong>
+                    <Label
+                      size='mini'
+                      color={selectedRecord.status === 1 ? 'green' : 'red'}
+                      style={{ marginLeft: '5px' }}
+                    >
+                      {selectedRecord.status === 1 ? '成功' : '失败'}
+                    </Label>
+                  </div>
+                  <div>
+                    <strong>创建时间:</strong>{' '}
+                    {timestamp2string(selectedRecord.created_time)}
+                  </div>
+                  <div>
+                    <strong>更新时间:</strong>{' '}
+                    {timestamp2string(selectedRecord.updated_time)}
+                  </div>
+                </div>
+
+                {/* 错误信息 */}
+                {selectedRecord.error_message && (
+                  <div style={{ marginTop: '15px' }}>
+                    <h4>错误信息</h4>
+                    <div
+                      style={{
+                        padding: '10px',
+                        background: '#fff3f3',
+                        borderRadius: '4px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        border: '1px solid #ffcdd2',
+                      }}
+                    >
+                      {selectedRecord.error_message}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 会话记录 */}
+              <div>
+                <h4>完整会话记录</h4>
+                {conversationLoading ? (
+                  <Message>加载中...</Message>
+                ) : conversationRecords.length === 0 ? (
+                  <Message>暂无会话记录</Message>
+                ) : (
+                  <div style={{ marginTop: '10px' }}>
+                    {conversationRecords.map((record, index) => {
+                      const isUser = record.role === 'user';
+                      const isSystem = record.role === 'system';
+                      const isError = record.status === 2;
+
+                      return (
+                        <div
+                          key={record.id}
+                          style={{
+                            marginBottom: '15px',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            background: isSystem
+                              ? '#e3f2fd'
+                              : isUser
+                              ? '#f5f5f5'
+                              : isError
+                              ? '#ffebee'
+                              : '#e8f5e9',
+                            border: isError
+                              ? '2px solid #ef5350'
+                              : '1px solid #ddd',
+                            position: 'relative',
+                          }}
+                        >
+                          {/* 角色标签 */}
+                          <div
+                            style={{
+                              marginBottom: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}
+                          >
+                            <Label
+                              size='small'
+                              color={
+                                isSystem
+                                  ? 'blue'
+                                  : isUser
+                                  ? 'grey'
+                                  : isError
+                                  ? 'red'
+                                  : 'green'
+                              }
+                            >
+                              {record.role === 'user'
+                                ? '👤 用户'
+                                : record.role === 'system'
+                                ? '⚙️ 系统'
+                                : record.role === 'assistant'
+                                ? '🤖 助手'
+                                : record.role}
+                            </Label>
+                            <span style={{ fontSize: '12px', color: '#666' }}>
+                              {timestamp2string(record.created_time)}
+                            </span>
+                            {isError && (
+                              <Label size='tiny' color='red'>
+                                错误
+                              </Label>
+                            )}
+                            {record.id === selectedRecord.id && (
+                              <Label size='tiny' color='orange'>
+                                当前记录
+                              </Label>
+                            )}
+                          </div>
+
+                          {/* 消息内容 */}
+                          <div
+                            style={{
+                              padding: '8px',
+                              background: 'white',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              lineHeight: '1.6',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {record.content || (
+                              <span
+                                style={{ color: '#999', fontStyle: 'italic' }}
+                              >
+                                无内容
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Token信息 */}
+                          {(record.prompt_tokens > 0 ||
+                            record.completion_tokens > 0) && (
+                            <div
+                              style={{
+                                marginTop: '8px',
+                                fontSize: '12px',
+                                color: '#666',
+                                display: 'flex',
+                                gap: '15px',
+                              }}
+                            >
+                              <span>📊 Prompt: {record.prompt_tokens}</span>
+                              <span>
+                                📝 Completion: {record.completion_tokens}
+                              </span>
+                              <span>💰 Total: {record.total_tokens}</span>
+                              {record.response_time > 0 && (
+                                <span>⏱️ {record.response_time}ms</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 错误信息 */}
+                          {record.error_message && (
+                            <div
+                              style={{
+                                marginTop: '8px',
+                                padding: '8px',
+                                background: '#ffebee',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontFamily: 'monospace',
+                                color: '#c62828',
+                                border: '1px solid #ef9a9a',
+                              }}
+                            >
+                              ❌ {record.error_message}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Modal.Content>
+        <Modal.Actions>
+          <Button onClick={closeDetailModal}>关闭</Button>
+        </Modal.Actions>
+      </Modal>
+
       <Form onSubmit={searchChannels}>
         <Form.Input
           icon='search'
@@ -499,6 +933,14 @@ const ChannelsTable = () => {
             <Table.HeaderCell
               style={{ cursor: 'pointer' }}
               onClick={() => {
+                sortChannel('error_count');
+              }}
+            >
+              错误/总数
+            </Table.HeaderCell>
+            <Table.HeaderCell
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
                 sortChannel('priority');
               }}
               hidden={!showDetail}
@@ -556,6 +998,43 @@ const ChannelsTable = () => {
                       content={t('channel.table.click_to_update')}
                       basic
                     />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '4px',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Popup
+                        trigger={
+                          <Label
+                            basic
+                            color={channel.error_count > 0 ? 'red' : 'grey'}
+                            style={{
+                              cursor:
+                                channel.error_count > 0 ? 'pointer' : 'default',
+                            }}
+                            onClick={() => {
+                              if (channel.error_count > 0) {
+                                openErrorRecordsModal(channel.id, channel.name);
+                              }
+                            }}
+                          >
+                            {channel.error_count || 0}
+                          </Label>
+                        }
+                        content={
+                          channel.error_count > 0
+                            ? '点击查看错误记录'
+                            : '暂无错误'
+                        }
+                        basic
+                      />
+                      <span>/</span>
+                      <Label basic>{channel.total_count || 0}</Label>
+                    </div>
                   </Table.Cell>
                   <Table.Cell hidden={!showDetail}>
                     <Popup
@@ -664,7 +1143,7 @@ const ChannelsTable = () => {
 
         <Table.Footer>
           <Table.Row>
-            <Table.HeaderCell colSpan={showDetail ? '10' : '8'}>
+            <Table.HeaderCell colSpan={showDetail ? '11' : '9'}>
               <Button size='tiny' as={Link} to='/channel/add' loading={loading}>
                 {t('channel.buttons.add')}
               </Button>
