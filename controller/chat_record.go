@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/songquanpeng/one-api/common/ctxkey"
 	"github.com/songquanpeng/one-api/common/logger"
 	"github.com/songquanpeng/one-api/model"
 )
@@ -81,6 +82,7 @@ func GetChatRecordById(c *gin.Context) {
 // GetConversationRecords 获取会话的所有记录
 func GetConversationRecords(c *gin.Context) {
 	userId := c.GetInt("id")
+	userRole := c.GetInt(ctxkey.Role)
 	conversationId := c.Param("conversation_id")
 
 	if conversationId == "" {
@@ -101,11 +103,17 @@ func GetConversationRecords(c *gin.Context) {
 		return
 	}
 
-	// 检查权限 - 确保用户只能访问自己的记录
+	// 管理员可以查看所有记录，普通用户只能查看自己的记录
 	var userRecords []*model.ChatRecord
-	for _, record := range records {
-		if record.UserId == userId {
-			userRecords = append(userRecords, record)
+	if userRole >= model.RoleAdminUser {
+		// 管理员返回所有记录
+		userRecords = records
+	} else {
+		// 普通用户只返回自己的记录
+		for _, record := range records {
+			if record.UserId == userId {
+				userRecords = append(userRecords, record)
+			}
 		}
 	}
 
