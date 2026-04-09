@@ -81,6 +81,7 @@ export const CHANNEL_OPTIONS = [
   { key: 38, text: 'DeepL', value: 38, color: 'black' },
   { key: 39, text: 'together.ai', value: 39, color: 'blue' },
   { key: 42, text: 'VertexAI', value: 42, color: 'blue' },
+  { key: 52, text: 'VertexAI (API Key)', value: 52, color: 'blue' },
   { key: 43, text: 'Proxy', value: 43, color: 'blue' },
   { key: 44, text: 'SiliconFlow', value: 44, color: 'blue' },
   { key: 45, text: 'xAI', value: 45, color: 'blue' },

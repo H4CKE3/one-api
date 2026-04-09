@@ -41,6 +41,8 @@ func ToAPIType(channelType int) int {
 		apiType = apitype.Replicate
 	case Proxy:
 		apiType = apitype.Proxy
+	case VertexAIKey:
+		apiType = apitype.VertexAIKey
 	}
 
 	return apiType

@@ -167,6 +167,12 @@ export const CHANNEL_OPTIONS = {
     value: 42,
     color: 'primary'
   },
+  52: {
+    key: 52,
+    text: 'VertexAI (API Key)',
+    value: 52,
+    color: 'primary'
+  },
   43: {
     key: 43,
     text: 'Proxy',

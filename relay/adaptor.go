@@ -19,6 +19,7 @@ import (
 	"github.com/songquanpeng/one-api/relay/adaptor/replicate"
 	"github.com/songquanpeng/one-api/relay/adaptor/tencent"
 	"github.com/songquanpeng/one-api/relay/adaptor/vertexai"
+	"github.com/songquanpeng/one-api/relay/adaptor/vertexaikey"
 	"github.com/songquanpeng/one-api/relay/adaptor/xunfei"
 	"github.com/songquanpeng/one-api/relay/adaptor/zhipu"
 	"github.com/songquanpeng/one-api/relay/apitype"
@@ -64,6 +65,8 @@ func GetAdaptor(apiType int) adaptor.Adaptor {
 		return &proxy.Adaptor{}
 	case apitype.Replicate:
 		return &replicate.Adaptor{}
+	case apitype.VertexAIKey:
+		return &vertexaikey.Adaptor{}
 	}
 	return nil
 }
