@@ -126,6 +126,20 @@ func ConvertRequest(textRequest relaymodel.GeneralOpenAIRequest) *ChatRequest {
 						Data:     data,
 					},
 				})
+			case relaymodel.ContentTypeFile:
+				if part.File == nil || part.File.FileData == "" {
+					continue
+				}
+				mimeType, data, err := relaymodel.ParseFileDataURI(part.File.FileData)
+				if err != nil {
+					continue
+				}
+				parts = append(parts, Part{
+					InlineData: &InlineData{
+						MimeType: mimeType,
+						Data:     data,
+					},
+				})
 			}
 		}
 		if len(parts) > 0 {

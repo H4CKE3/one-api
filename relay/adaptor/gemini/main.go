@@ -128,6 +128,18 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 						Data:     data,
 					},
 				})
+			} else if part.Type == model.ContentTypeFile && part.File != nil && part.File.FileData != "" {
+				mimeType, data, err := model.ParseFileDataURI(part.File.FileData)
+				if err != nil {
+					logger.SysError("error parsing file data: " + err.Error())
+					continue
+				}
+				parts = append(parts, Part{
+					InlineData: &InlineData{
+						MimeType: mimeType,
+						Data:     data,
+					},
+				})
 			}
 		}
 		content.Parts = parts

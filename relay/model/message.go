@@ -1,5 +1,10 @@
 package model
 
+import (
+	"fmt"
+	"strings"
+)
+
 type Message struct {
 	Role             string  `json:"role,omitempty"`
 	Content          any     `json:"content,omitempty"`
@@ -65,11 +70,22 @@ func (m Message) ParseContent() []MessageContent {
 				}
 			case ContentTypeImageURL:
 				if subObj, ok := contentMap["image_url"].(map[string]any); ok {
+					url, ok := subObj["url"].(string)
+					if !ok {
+						continue
+					}
 					contentList = append(contentList, MessageContent{
 						Type: ContentTypeImageURL,
 						ImageURL: &ImageURL{
-							Url: subObj["url"].(string),
+							Url: url,
 						},
+					})
+				}
+			case ContentTypeFile:
+				if subObj, ok := contentMap["file"].(map[string]any); ok {
+					contentList = append(contentList, MessageContent{
+						Type: ContentTypeFile,
+						File: parseFilePayload(subObj),
 					})
 				}
 			}
@@ -79,13 +95,59 @@ func (m Message) ParseContent() []MessageContent {
 	return nil
 }
 
+func parseFilePayload(payload map[string]any) *FilePayload {
+	file := &FilePayload{}
+	if filename, ok := payload["filename"].(string); ok {
+		file.Filename = filename
+	}
+	if fileData, ok := payload["file_data"].(string); ok {
+		file.FileData = fileData
+	}
+	if fileID, ok := payload["file_id"].(string); ok {
+		file.FileID = fileID
+	}
+	return file
+}
+
+func ParseFileDataURI(fileData string) (mimeType string, data string, err error) {
+	if !strings.HasPrefix(fileData, "data:") {
+		return "", "", fmt.Errorf("file_data must be a data URI")
+	}
+	comma := strings.Index(fileData, ",")
+	if comma < 0 {
+		return "", "", fmt.Errorf("invalid file_data URI")
+	}
+
+	meta := fileData[len("data:"):comma]
+	if !strings.HasSuffix(meta, ";base64") {
+		return "", "", fmt.Errorf("file_data must be base64 encoded")
+	}
+
+	mimeType = strings.TrimSuffix(meta, ";base64")
+	if mimeType == "" {
+		return "", "", fmt.Errorf("file_data MIME type is required")
+	}
+	data = fileData[comma+1:]
+	if data == "" {
+		return "", "", fmt.Errorf("file_data base64 content is required")
+	}
+	return mimeType, data, nil
+}
+
 type ImageURL struct {
 	Url    string `json:"url,omitempty"`
 	Detail string `json:"detail,omitempty"`
 }
 
+type FilePayload struct {
+	Filename string `json:"filename,omitempty"`
+	FileData string `json:"file_data,omitempty"`
+	FileID   string `json:"file_id,omitempty"`
+}
+
 type MessageContent struct {
-	Type     string    `json:"type,omitempty"`
-	Text     string    `json:"text"`
-	ImageURL *ImageURL `json:"image_url,omitempty"`
+	Type     string       `json:"type,omitempty"`
+	Text     string       `json:"text"`
+	ImageURL *ImageURL    `json:"image_url,omitempty"`
+	File     *FilePayload `json:"file,omitempty"`
 }
