@@ -66,8 +66,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Read
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, responseText string, err *model.ErrorWithStatusCode) {
 	if meta.IsStream {
-		err, responseText = gemini.StreamHandler(c, resp)
-		usage = openai.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+		err, responseText, usage = gemini.StreamHandlerWithUsage(c, resp)
+		if usage == nil {
+			usage = openai.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+		}
 	} else {
 		err, usage, responseText = gemini.Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
 	}
