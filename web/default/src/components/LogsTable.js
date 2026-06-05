@@ -4,8 +4,8 @@ import {
   Form,
   Header,
   Label,
+  Modal,
   Pagination,
-  Segment,
   Select,
   Table,
   Popup,
@@ -129,6 +129,142 @@ function renderDetail(log) {
   );
 }
 
+function getPromptRoleMeta(record) {
+  if (record.status === 2) {
+    return {
+      label: record.role === 'assistant' ? '🤖 助手错误' : record.role,
+      color: 'red',
+      background: '#fff5f5',
+      border: '#f3b0b0',
+      contentBackground: '#fffafa',
+    };
+  }
+  switch (record.role) {
+    case 'system':
+      return {
+        label: '⚙️ 系统',
+        color: 'blue',
+        background: '#f4f8ff',
+        border: '#b8d5ff',
+        contentBackground: '#ffffff',
+      };
+    case 'user':
+      return {
+        label: '👤 用户',
+        color: 'grey',
+        background: '#f7f7f7',
+        border: '#d9d9d9',
+        contentBackground: '#ffffff',
+      };
+    case 'assistant':
+      return {
+        label: '🤖 助手',
+        color: 'green',
+        background: '#f3fbf5',
+        border: '#b9e3c2',
+        contentBackground: '#ffffff',
+      };
+    case 'developer':
+      return {
+        label: '🛠️ 开发者',
+        color: 'purple',
+        background: '#faf6ff',
+        border: '#d8bdf4',
+        contentBackground: '#ffffff',
+      };
+    default:
+      return {
+        label: record.role || '未知',
+        color: 'black',
+        background: '#fafafa',
+        border: '#dedede',
+        contentBackground: '#ffffff',
+      };
+  }
+}
+
+function renderPromptInformation(records) {
+  if (!records || records.length === 0) {
+    return <p>没有找到该请求对应的日志信息。</p>;
+  }
+
+  return (
+    <div
+      style={{
+        maxHeight: '65vh',
+        overflowY: 'auto',
+        paddingRight: '6px',
+      }}
+    >
+      {records.map((record) => {
+        const content = record.content || record.error_message || '-';
+        const roleMeta = getPromptRoleMeta(record);
+        return (
+          <div
+            key={record.id}
+            style={{
+              background: roleMeta.background,
+              border: `1px solid ${roleMeta.border}`,
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+              marginBottom: '14px',
+              padding: '14px',
+            }}
+          >
+            <div
+              style={{
+                alignItems: 'center',
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '10px',
+              }}
+            >
+              <div>
+                <Label color={roleMeta.color} size='small'>
+                  {roleMeta.label}
+                </Label>
+                {record.status === 2 && (
+                  <Label basic color='red' size='mini'>
+                    失败
+                  </Label>
+                )}
+              </div>
+              <span
+                style={{
+                  color: '#6b7280',
+                  fontSize: '12px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {timestamp2string(record.created_time)}
+              </span>
+            </div>
+            <div
+              style={{
+                background: roleMeta.contentBackground,
+                border: `1px solid ${roleMeta.border}`,
+                borderRadius: '6px',
+                color: '#202124',
+                fontFamily:
+                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                fontSize: '13px',
+                lineHeight: '1.65',
+                maxHeight: '420px',
+                overflow: 'auto',
+                padding: '12px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {content}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const LogsTable = () => {
   const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
@@ -138,6 +274,9 @@ const LogsTable = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searching, setSearching] = useState(false);
   const [logType, setLogType] = useState(0);
+  const [logInfoModalOpen, setLogInfoModalOpen] = useState(false);
+  const [promptInfo, setPromptInfo] = useState([]);
+  const [promptInfoLoading, setPromptInfoLoading] = useState(false);
   const isAdminUser = isAdmin();
   let now = new Date();
   const [inputs, setInputs] = useState({
@@ -308,8 +447,38 @@ const LogsTable = () => {
     setLoading(false);
   };
 
+  const openLogInfoModal = async (log) => {
+    setPromptInfo([]);
+    setLogInfoModalOpen(true);
+    if (!log.request_id) return;
+    setPromptInfoLoading(true);
+    const res = await API.get(`/api/log/prompt/${log.request_id}`);
+    const { success, message, data } = res.data;
+    if (success) {
+      setPromptInfo(data || []);
+    } else {
+      showError(message);
+    }
+    setPromptInfoLoading(false);
+  };
+
+  const closeLogInfoModal = () => {
+    setLogInfoModalOpen(false);
+    setPromptInfo([]);
+    setPromptInfoLoading(false);
+  };
+
   return (
     <>
+      <Modal open={logInfoModalOpen} onClose={closeLogInfoModal} size='large'>
+        <Modal.Header>日志</Modal.Header>
+        <Modal.Content scrolling>
+          {promptInfoLoading ? <p>加载中...</p> : renderPromptInformation(promptInfo)}
+        </Modal.Content>
+        <Modal.Actions>
+          <Button onClick={closeLogInfoModal}>关闭</Button>
+        </Modal.Actions>
+      </Modal>
       <Header as='h3'>
         {t('log.usage_details')}（{t('log.total_quota')}：
         {showStat && renderQuota(stat.quota, t)}
@@ -501,6 +670,7 @@ const LogsTable = () => {
               </>
             )}
             <Table.HeaderCell>{t('log.table.detail')}</Table.HeaderCell>
+            <Table.HeaderCell width={1}>操作</Table.HeaderCell>
           </Table.Row>
         </Table.Header>
 
@@ -570,6 +740,15 @@ const LogsTable = () => {
                   )}
 
                   <Table.Cell>{renderDetail(log)}</Table.Cell>
+                  <Table.Cell>
+                    <Button
+                      basic
+                      circular
+                      icon='info circle'
+                      size='mini'
+                      onClick={() => openLogInfoModal(log)}
+                    />
+                  </Table.Cell>
                 </Table.Row>
               );
             })}
@@ -577,7 +756,7 @@ const LogsTable = () => {
 
         <Table.Footer>
           <Table.Row>
-            <Table.HeaderCell colSpan={'10'}>
+            <Table.HeaderCell colSpan={'11'}>
               <Select
                 placeholder={t('log.type.select')}
                 options={LOG_OPTIONS}

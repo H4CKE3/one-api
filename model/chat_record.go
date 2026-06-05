@@ -75,6 +75,13 @@ func GetChatRecordsByConversationId(conversationId string) ([]*ChatRecord, error
 	return records, err
 }
 
+// GetChatRecordsByRequestId 根据请求ID获取聊天记录
+func GetChatRecordsByRequestId(requestId string) ([]*ChatRecord, error) {
+	var records []*ChatRecord
+	err := DB.Where("request_id = ?", requestId).Order("created_time asc, id asc").Find(&records).Error
+	return records, err
+}
+
 // GetChatRecordById 根据ID获取聊天记录
 func GetChatRecordById(id int) (*ChatRecord, error) {
 	var record ChatRecord
@@ -148,20 +155,20 @@ func SearchChatRecords(userId int, keyword string, startIdx int, num int) ([]*Ch
 func GetErrorChatRecordsByChannelId(channelId int, startIdx int, num int) ([]*ChatRecord, int64, error) {
 	var records []*ChatRecord
 	var total int64
-	
+
 	// 获取总数
 	err := DB.Model(&ChatRecord{}).Where("channel_id = ? AND status = ?", channelId, ChatRecordStatusFailed).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	
+
 	// 获取分页数据
 	err = DB.Where("channel_id = ? AND status = ?", channelId, ChatRecordStatusFailed).
 		Order("created_time desc").
 		Limit(num).
 		Offset(startIdx).
 		Find(&records).Error
-	
+
 	return records, total, err
 }
 

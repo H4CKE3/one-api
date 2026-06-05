@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,27 +57,8 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 
 	// 保存用户消息到聊天记录
 	if meta.Mode == relaymode.ChatCompletions && len(textRequest.Messages) > 0 {
-		// 解析用户消息和系统消息
-		var userContent, systemContent strings.Builder
 		for _, msg := range textRequest.Messages {
-			switch msg.Role {
-			case model.ChatRoleUser:
-				userContent.WriteString(msg.StringContent())
-				userContent.WriteString("\n")
-			case model.ChatRoleSystem:
-				systemContent.WriteString(msg.StringContent())
-				systemContent.WriteString("\n")
-			}
-		}
-
-		// 保存系统消息
-		if systemContent.Len() > 0 {
-			model.SaveChatRecordAsync(chatService, strings.TrimSpace(systemContent.String()), model.ChatRoleSystem, 0, 0, 0, model.ChatRecordStatusSuccess, "")
-		}
-
-		// 保存用户消息
-		if userContent.Len() > 0 {
-			model.SaveChatRecordAsync(chatService, strings.TrimSpace(userContent.String()), model.ChatRoleUser, 0, 0, 0, model.ChatRecordStatusSuccess, "")
+			savePromptMessage(ctx, chatService, msg.Role, msg.StringContent())
 		}
 	}
 
@@ -112,27 +94,30 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	if err != nil {
 		logger.Errorf(ctx, "DoRequest failed: %s", err.Error())
 		bizErr := openai.ErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
-		
+		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
+		recordFailedConsumeLog(ctx, bizErr, meta, textRequest, modelRatio, groupRatio, systemPromptReset)
+
 		// 保存失败的聊天记录
 		if meta.Mode == relaymode.ChatCompletions {
-			errorMsg := fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s", 
+			errorMsg := fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s",
 				bizErr.StatusCode, bizErr.Error.Type, bizErr.Error.Code, bizErr.Error.Param, bizErr.Error.Message)
 			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, 0, 0, 0, model.ChatRecordStatusFailed, errorMsg)
 		}
-		
+
 		return bizErr
 	}
 	if isErrorHappened(meta, resp) {
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
 		relayErr := RelayErrorHandler(resp)
-		
+		recordFailedConsumeLog(ctx, relayErr, meta, textRequest, modelRatio, groupRatio, systemPromptReset)
+
 		// 保存失败的聊天记录
 		if meta.Mode == relaymode.ChatCompletions {
-			errorMsg := fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s", 
+			errorMsg := fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s",
 				relayErr.StatusCode, relayErr.Error.Type, relayErr.Error.Code, relayErr.Error.Param, relayErr.Error.Message)
 			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, 0, 0, 0, model.ChatRecordStatusFailed, errorMsg)
 		}
-		
+
 		return relayErr
 	}
 
@@ -141,13 +126,14 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	if respErr != nil {
 		logger.Errorf(ctx, "respErr is not nil: %+v", respErr)
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
+		recordFailedConsumeLog(ctx, respErr, meta, textRequest, modelRatio, groupRatio, systemPromptReset)
 
 		// 保存失败的聊天记录
 		if meta.Mode == relaymode.ChatCompletions {
 			errorMsg := ""
 			if respErr != nil {
 				// 将详细错误信息合并到 error_message
-				errorMsg = fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s", 
+				errorMsg = fmt.Sprintf("StatusCode: %d, Type: %s, Code: %s, Param: %s, Message: %s",
 					respErr.StatusCode, respErr.Error.Type, respErr.Error.Code, respErr.Error.Param, respErr.Error.Message)
 			}
 			model.SaveChatRecordAsync(chatService, "", model.ChatRoleAssistant, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), model.ChatRecordStatusFailed, errorMsg)
@@ -165,6 +151,50 @@ func RelayTextHelper(c *gin.Context) *relaymodel.ErrorWithStatusCode {
 	// post-consume quota
 	go postConsumeQuota(ctx, usage, meta, textRequest, ratio, preConsumedQuota, modelRatio, groupRatio, systemPromptReset)
 	return nil
+}
+
+func savePromptMessage(ctx context.Context, chatService *model.ChatRecordService, role string, content string) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return
+	}
+
+	var err error
+	switch role {
+	case model.ChatRoleSystem:
+		err = chatService.SaveSystemMessage(content)
+	case model.ChatRoleDeveloper:
+		err = chatService.SaveDeveloperMessage(content)
+	case model.ChatRoleAssistant:
+		err = chatService.SaveAssistantMessage(content, 0, 0, 0, model.ChatRecordStatusSuccess, "")
+	case model.ChatRoleUser:
+		err = chatService.SaveUserMessage(content, model.ChatRoleUser)
+	default:
+		err = chatService.SaveUserMessage(content, role)
+	}
+	if err != nil {
+		logger.Errorf(ctx, "save prompt chat record failed: %s", err.Error())
+	}
+}
+
+func recordFailedConsumeLog(ctx context.Context, err *relaymodel.ErrorWithStatusCode, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, modelRatio float64, groupRatio float64, systemPromptReset bool) {
+	if err == nil {
+		return
+	}
+	logContent := fmt.Sprintf("请求失败：%s；倍率：%.2f × %.2f", err.Error.Message, modelRatio, groupRatio)
+	model.RecordConsumeLog(ctx, &model.Log{
+		UserId:            meta.UserId,
+		ChannelId:         meta.ChannelId,
+		PromptTokens:      meta.PromptTokens,
+		CompletionTokens:  0,
+		ModelName:         textRequest.Model,
+		TokenName:         meta.TokenName,
+		Quota:             0,
+		Content:           logContent,
+		IsStream:          meta.IsStream,
+		ElapsedTime:       helper.CalcElapsedTime(meta.StartTime),
+		SystemPromptReset: systemPromptReset,
+	})
 }
 
 func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *relaymodel.GeneralOpenAIRequest, adaptor adaptor.Adaptor) (io.Reader, error) {

@@ -101,6 +101,42 @@ func SearchUserLogs(c *gin.Context) {
 	return
 }
 
+func GetLogPromptInfo(c *gin.Context) {
+	requestId := c.Param("request_id")
+	if requestId == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "request_id is required",
+		})
+		return
+	}
+	records, err := model.GetChatRecordsByRequestId(requestId)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	userId := c.GetInt(ctxkey.Id)
+	role := c.GetInt(ctxkey.Role)
+	if role < model.RoleAdminUser {
+		filteredRecords := make([]*model.ChatRecord, 0, len(records))
+		for _, record := range records {
+			if record.UserId == userId {
+				filteredRecords = append(filteredRecords, record)
+			}
+		}
+		records = filteredRecords
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    records,
+	})
+	return
+}
+
 func GetLogsStat(c *gin.Context) {
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
