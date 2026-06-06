@@ -83,13 +83,24 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 	}
 	if textRequest.Tools != nil {
 		functions := make([]model.Function, 0, len(textRequest.Tools))
+		tools := make([]ChatTools, 0, len(textRequest.Tools))
 		for _, tool := range textRequest.Tools {
-			functions = append(functions, tool.Function)
+			switch {
+			case tool.Type == "google_search" || tool.GoogleSearch != nil:
+				tools = append(tools, ChatTools{GoogleSearch: assignOrEmptyToolConfig(tool.GoogleSearch)})
+			case tool.Type == "google_search_retrieval" || tool.GoogleSearchRetrieval != nil:
+				tools = append(tools, ChatTools{GoogleSearchRetrieval: assignOrEmptyToolConfig(tool.GoogleSearchRetrieval)})
+			case tool.Function.Name != "":
+				functions = append(functions, tool.Function)
+			}
 		}
-		geminiRequest.Tools = []ChatTools{
-			{
+		if len(functions) > 0 {
+			tools = append(tools, ChatTools{
 				FunctionDeclarations: functions,
-			},
+			})
+		}
+		if len(tools) > 0 {
+			geminiRequest.Tools = tools
 		}
 	} else if textRequest.Functions != nil {
 		geminiRequest.Tools = []ChatTools{
@@ -177,6 +188,13 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 	}
 
 	return &geminiRequest
+}
+
+func assignOrEmptyToolConfig(value map[string]any) any {
+	if value == nil {
+		return struct{}{}
+	}
+	return value
 }
 
 func ConvertEmbeddingRequest(request model.GeneralOpenAIRequest) *BatchEmbeddingRequest {

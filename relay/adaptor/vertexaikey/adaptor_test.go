@@ -118,6 +118,37 @@ func TestConvertRequestProducesVertexJSONShape(t *testing.T) {
 	}
 }
 
+func TestConvertRequestKeepsGoogleSearchToolNative(t *testing.T) {
+	adaptor := &Adaptor{}
+	request := &relaymodel.GeneralOpenAIRequest{
+		Model: "gemini-2.0-flash",
+		Tools: []relaymodel.Tool{
+			{Type: "google_search"},
+		},
+		Messages: []relaymodel.Message{
+			{Role: "user", Content: "Search recent news"},
+		},
+	}
+
+	converted, err := adaptor.ConvertRequest(nil, 0, request)
+	if err != nil {
+		t.Fatalf("ConvertRequest returned error: %v", err)
+	}
+
+	payload, err := json.Marshal(converted)
+	if err != nil {
+		t.Fatalf("failed to marshal converted request: %v", err)
+	}
+
+	jsonBody := string(payload)
+	if !strings.Contains(jsonBody, `"googleSearch":{}`) {
+		t.Fatalf("expected JSON body to contain native googleSearch tool, got %s", jsonBody)
+	}
+	if strings.Contains(jsonBody, "functionDeclarations") {
+		t.Fatalf("expected JSON body not to contain functionDeclarations, got %s", jsonBody)
+	}
+}
+
 // TestLocalOneAPIVertexGemini 向本机已启动的 one-api 发一条 chat/completions，用于联调 Vertex（API Key）渠道。
 // 勿把令牌写进仓库：在 shell 里设置 ONE_API_TEST_KEY 后再运行，例如：
 //

@@ -1,10 +1,12 @@
 package model
 
 type Tool struct {
-	Id            string         `json:"id,omitempty"`
-	Type          string         `json:"type,omitempty"` // when splicing claude tools stream messages, it is empty
-	Function      Function       `json:"function"`
-	CodeExecution map[string]any `json:"code_execution,omitempty"`
+	Id                    string         `json:"id,omitempty"`
+	Type                  string         `json:"type,omitempty"` // when splicing claude tools stream messages, it is empty
+	Function              Function       `json:"function"`
+	CodeExecution         map[string]any `json:"code_execution,omitempty"`
+	GoogleSearch          map[string]any `json:"google_search,omitempty"`
+	GoogleSearchRetrieval map[string]any `json:"google_search_retrieval,omitempty"`
 }
 
 type Function struct {

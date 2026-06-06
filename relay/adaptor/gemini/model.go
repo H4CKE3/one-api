@@ -62,7 +62,9 @@ type ChatSafetySettings struct {
 }
 
 type ChatTools struct {
-	FunctionDeclarations any `json:"function_declarations,omitempty"`
+	FunctionDeclarations  any `json:"function_declarations,omitempty"`
+	GoogleSearch          any `json:"google_search,omitempty"`
+	GoogleSearchRetrieval any `json:"google_search_retrieval,omitempty"`
 }
 
 type ThinkingConfig struct {
