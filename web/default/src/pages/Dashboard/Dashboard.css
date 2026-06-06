@@ -68,6 +68,203 @@
     margin-left: 16px;
 }
 
+.metric-card .content {
+    display: flex;
+    flex-direction: column;
+    min-height: 260px;
+}
+
+.metric-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 8px 0;
+}
+
+.metric-card-title {
+    color: #1f2933;
+    font-size: 1.15em;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.metric-card-value {
+    color: #4318FF;
+    font-size: 2em;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-top: 10px;
+    word-break: break-word;
+}
+
+.metric-card-subtitle {
+    color: #8f9bb3;
+    font-size: 0.9em;
+    margin-top: 4px;
+}
+
+.metric-chart-container {
+    margin-top: auto;
+    padding: 8px 16px 6px;
+    background-color: white;
+    border-radius: 12px;
+}
+
+.analysis-card {
+    margin-top: 1rem !important;
+}
+
+.analysis-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 8px 8px 18px;
+    border-bottom: 1px solid #eef1f6;
+}
+
+.analysis-title {
+    color: #1f2933;
+    font-size: 1.35em;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.analysis-subtitle,
+.analysis-chart-total,
+.model-ranking-subtitle {
+    color: #7b8794;
+    font-size: 0.95em;
+    margin-top: 6px;
+}
+
+.analysis-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.analysis-tab {
+    border: 1px solid #e3e8ef;
+    background: #fff;
+    color: #626d7a;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.analysis-tab:hover {
+    color: #1f2933;
+    border-color: #cbd5e1;
+}
+
+.analysis-tab.active {
+    background: #1f2933;
+    border-color: #1f2933;
+    color: #fff;
+}
+
+.analysis-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 24px;
+    padding: 24px 8px 8px;
+}
+
+.analysis-chart-panel,
+.model-ranking-panel {
+    min-width: 0;
+}
+
+.analysis-chart-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.analysis-chart-title,
+.model-ranking-title {
+    color: #1f2933;
+    font-size: 1.1em;
+    font-weight: 800;
+}
+
+.analysis-chart-container {
+    padding: 12px 8px 0;
+}
+
+.model-ranking-panel {
+    border-left: 1px solid #eef1f6;
+    padding-left: 24px;
+}
+
+.model-ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.model-ranking-row {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #eef1f6;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.model-ranking-index {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #f3f6fb;
+    color: #475569;
+    font-weight: 800;
+}
+
+.model-ranking-content {
+    min-width: 0;
+}
+
+.model-ranking-name {
+    color: #1f2933;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.model-ranking-meta {
+    color: #7b8794;
+    font-size: 0.86em;
+    margin-top: 3px;
+    line-height: 1.35;
+}
+
+.model-ranking-value {
+    color: #1f2933;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.model-ranking-empty {
+    color: #7b8794;
+    padding: 24px 0;
+    text-align: center;
+}
+
 /* 优化图表响应式布局 */
 @media (max-width: 768px) {
     .dashboard-container {
@@ -77,6 +274,43 @@
     
     .chart-container {
         padding: 12px;
+    }
+
+    .metric-card .content {
+        min-height: 240px;
+    }
+
+    .metric-card-value {
+        font-size: 1.7em;
+    }
+
+    .analysis-header {
+        flex-direction: column;
+    }
+
+    .analysis-tabs {
+        justify-content: flex-start;
+    }
+
+    .analysis-body {
+        grid-template-columns: 1fr;
+        padding-top: 18px;
+    }
+
+    .model-ranking-panel {
+        border-left: none;
+        border-top: 1px solid #eef1f6;
+        padding-left: 0;
+        padding-top: 18px;
+    }
+
+    .model-ranking-row {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+
+    .model-ranking-value {
+        grid-column: 2;
+        justify-self: start;
     }
     
     .charts-grid .column {

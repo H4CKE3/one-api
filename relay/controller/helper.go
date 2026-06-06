@@ -57,16 +57,19 @@ func getPromptTokens(textRequest *relaymodel.GeneralOpenAIRequest, relayMode int
 	return 0
 }
 
-func getPreConsumedQuota(textRequest *relaymodel.GeneralOpenAIRequest, promptTokens int, ratio float64) int64 {
+func getPreConsumedQuota(textRequest *relaymodel.GeneralOpenAIRequest, promptTokens int, ratio float64, groupRatio float64, meta *meta.Meta) int64 {
 	preConsumedTokens := config.PreConsumedQuota + int64(promptTokens)
 	if textRequest.MaxTokens != 0 {
 		preConsumedTokens += int64(textRequest.MaxTokens)
 	}
+	if geminiQuota, ok := billingratio.CalculateGeminiTextQuota(textRequest.Model, meta.ChannelType, promptTokens, int(preConsumedTokens)-promptTokens, groupRatio); ok {
+		return geminiQuota
+	}
 	return int64(float64(preConsumedTokens) * ratio)
 }
 
-func preConsumeQuota(ctx context.Context, textRequest *relaymodel.GeneralOpenAIRequest, promptTokens int, ratio float64, meta *meta.Meta) (int64, *relaymodel.ErrorWithStatusCode) {
-	preConsumedQuota := getPreConsumedQuota(textRequest, promptTokens, ratio)
+func preConsumeQuota(ctx context.Context, textRequest *relaymodel.GeneralOpenAIRequest, promptTokens int, ratio float64, groupRatio float64, meta *meta.Meta) (int64, *relaymodel.ErrorWithStatusCode) {
+	preConsumedQuota := getPreConsumedQuota(textRequest, promptTokens, ratio, groupRatio, meta)
 
 	userQuota, err := model.CacheGetUserQuota(ctx, meta.UserId)
 	if err != nil {
@@ -103,9 +106,13 @@ func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.M
 	completionRatio := billingratio.GetCompletionRatio(textRequest.Model, meta.ChannelType)
 	promptTokens := usage.PromptTokens
 	completionTokens := usage.CompletionTokens
-	quota = int64(math.Ceil((float64(promptTokens) + float64(completionTokens)*completionRatio) * ratio))
-	if ratio != 0 && quota <= 0 {
-		quota = 1
+	if geminiQuota, ok := billingratio.CalculateGeminiTextQuota(textRequest.Model, meta.ChannelType, promptTokens, completionTokens, groupRatio); ok {
+		quota = geminiQuota
+	} else {
+		quota = int64(math.Ceil((float64(promptTokens) + float64(completionTokens)*completionRatio) * ratio))
+		if ratio != 0 && quota <= 0 {
+			quota = 1
+		}
 	}
 	totalTokens := promptTokens + completionTokens
 	if totalTokens == 0 {

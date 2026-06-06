@@ -3,10 +3,12 @@ package ratio
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 
 	"github.com/songquanpeng/one-api/common/logger"
+	"github.com/songquanpeng/one-api/relay/channeltype"
 )
 
 const (
@@ -135,6 +137,15 @@ var ModelRatio = map[string]float64{
 	"gemini-2.0-flash-lite-preview-02-05": 0.075 * MILLI_USD,
 	"gemini-2.0-flash-thinking-exp-01-21": 0.075 * MILLI_USD,
 	"gemini-2.0-pro-exp-02-05":            1.25 * MILLI_USD,
+	"gemini-2.5-pro":                      1.25 * MILLI_USD,
+	"gemini-2.5-pro-preview-03-25":        1.25 * MILLI_USD,
+	"gemini-2.5-pro-preview-05-06":        1.25 * MILLI_USD,
+	"gemini-2.5-pro-preview-06-05":        1.25 * MILLI_USD,
+	"gemini-2.5-flash":                    0.30 * MILLI_USD,
+	"gemini-2.5-flash-preview-04-17":      0.30 * MILLI_USD,
+	"gemini-2.5-flash-preview-05-20":      0.30 * MILLI_USD,
+	"gemini-2.5-flash-lite":               0.10 * MILLI_USD,
+	"gemini-3-flash-preview":              0.50 * MILLI_USD,
 	"aqa":                                 1,
 	// https://open.bigmodel.cn/pricing
 	"glm-zero-preview": 0.01 * RMB,
@@ -630,6 +641,171 @@ var CompletionRatio = map[string]float64{
 	// deepseek
 	"deepseek-chat":     0.28 / 0.14,
 	"deepseek-reasoner": 2.19 / 0.55,
+	// Gemini pricing uses different output/input ratios per model.
+	// Source: https://cloud.google.com/vertex-ai/generative-ai/pricing
+	"gemini-1.5-pro":                      4,
+	"gemini-1.5-pro-001":                  4,
+	"gemini-1.5-pro-experimental":         4,
+	"gemini-1.5-flash":                    4,
+	"gemini-1.5-flash-001":                4,
+	"gemini-1.5-flash-8b":                 4,
+	"gemini-2.0-flash":                    4,
+	"gemini-2.0-flash-001":                4,
+	"gemini-2.0-pro-exp-02-05":            4,
+	"gemini-2.0-flash-lite-preview-02-05": 4,
+	"gemini-2.0-flash-thinking-exp-01-21": 4,
+	"gemini-2.5-pro":                      10.00 / 1.25,
+	"gemini-2.5-pro-preview-03-25":        10.00 / 1.25,
+	"gemini-2.5-pro-preview-05-06":        10.00 / 1.25,
+	"gemini-2.5-pro-preview-06-05":        10.00 / 1.25,
+	"gemini-2.5-flash":                    2.50 / 0.30,
+	"gemini-2.5-flash-preview-04-17":      2.50 / 0.30,
+	"gemini-2.5-flash-preview-05-20":      2.50 / 0.30,
+	"gemini-2.5-flash-lite":               4,
+	"gemini-3-flash-preview":              3.00 / 0.50,
+}
+
+type geminiTextPrice struct {
+	InputUSDPerMillion      float64
+	OutputUSDPerMillion     float64
+	LongInputUSDPerMillion  float64
+	LongOutputUSDPerMillion float64
+	LongContextThreshold    int
+}
+
+func pricePerMillionTokensToRatio(price float64) float64 {
+	return price * MILLI_USD
+}
+
+func isGeminiDeveloperAPIChannel(channelType int) bool {
+	return channelType == channeltype.Gemini || channelType == channeltype.GeminiOpenAICompatible
+}
+
+func isGeminiVertexAIChannel(channelType int) bool {
+	return channelType == channeltype.VertextAI || channelType == channeltype.VertexAIKey
+}
+
+func normalizeGeminiModelName(name string) string {
+	switch name {
+	case "gemini-2.0-flash-001":
+		return "gemini-2.0-flash"
+	case "gemini-2.0-flash-lite-preview-02-05":
+		return "gemini-2.0-flash-lite"
+	case "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro-preview-06-05":
+		return "gemini-2.5-pro"
+	case "gemini-2.5-flash-preview-04-17", "gemini-2.5-flash-preview-05-20":
+		return "gemini-2.5-flash"
+	default:
+		return name
+	}
+}
+
+func getGeminiTextPrice(name string, channelType int, promptTokens int) (geminiTextPrice, bool) {
+	model := normalizeGeminiModelName(name)
+	prices := map[string]geminiTextPrice{
+		"gemini-1.5-flash": {
+			InputUSDPerMillion:      0.075,
+			OutputUSDPerMillion:     0.30,
+			LongInputUSDPerMillion:  0.15,
+			LongOutputUSDPerMillion: 0.60,
+			LongContextThreshold:    128000,
+		},
+		"gemini-1.5-flash-001": {
+			InputUSDPerMillion:      0.075,
+			OutputUSDPerMillion:     0.30,
+			LongInputUSDPerMillion:  0.15,
+			LongOutputUSDPerMillion: 0.60,
+			LongContextThreshold:    128000,
+		},
+		"gemini-1.5-flash-8b": {
+			InputUSDPerMillion:      0.0375,
+			OutputUSDPerMillion:     0.15,
+			LongInputUSDPerMillion:  0.075,
+			LongOutputUSDPerMillion: 0.30,
+			LongContextThreshold:    128000,
+		},
+		"gemini-1.5-pro": {
+			InputUSDPerMillion:      1.25,
+			OutputUSDPerMillion:     5.00,
+			LongInputUSDPerMillion:  2.50,
+			LongOutputUSDPerMillion: 10.00,
+			LongContextThreshold:    128000,
+		},
+		"gemini-1.5-pro-001": {
+			InputUSDPerMillion:      1.25,
+			OutputUSDPerMillion:     5.00,
+			LongInputUSDPerMillion:  2.50,
+			LongOutputUSDPerMillion: 10.00,
+			LongContextThreshold:    128000,
+		},
+		"gemini-1.5-pro-experimental": {
+			InputUSDPerMillion:      1.25,
+			OutputUSDPerMillion:     5.00,
+			LongInputUSDPerMillion:  2.50,
+			LongOutputUSDPerMillion: 10.00,
+			LongContextThreshold:    128000,
+		},
+		"gemini-2.0-flash-lite": {
+			InputUSDPerMillion:  0.075,
+			OutputUSDPerMillion: 0.30,
+		},
+		"gemini-2.5-pro": {
+			InputUSDPerMillion:      1.25,
+			OutputUSDPerMillion:     10.00,
+			LongInputUSDPerMillion:  2.50,
+			LongOutputUSDPerMillion: 15.00,
+			LongContextThreshold:    200000,
+		},
+		"gemini-2.5-flash": {
+			InputUSDPerMillion:  0.30,
+			OutputUSDPerMillion: 2.50,
+		},
+		"gemini-2.5-flash-lite": {
+			InputUSDPerMillion:  0.10,
+			OutputUSDPerMillion: 0.40,
+		},
+		"gemini-3-flash-preview": {
+			InputUSDPerMillion:  0.50,
+			OutputUSDPerMillion: 3.00,
+		},
+	}
+
+	if isGeminiDeveloperAPIChannel(channelType) {
+		prices["gemini-2.0-flash"] = geminiTextPrice{
+			InputUSDPerMillion:  0.10,
+			OutputUSDPerMillion: 0.40,
+		}
+	}
+	if isGeminiVertexAIChannel(channelType) {
+		prices["gemini-2.0-flash"] = geminiTextPrice{
+			InputUSDPerMillion:  0.15,
+			OutputUSDPerMillion: 0.60,
+		}
+	}
+
+	price, ok := prices[model]
+	if !ok {
+		return geminiTextPrice{}, false
+	}
+	if price.LongContextThreshold > 0 && promptTokens > price.LongContextThreshold {
+		price.InputUSDPerMillion = price.LongInputUSDPerMillion
+		price.OutputUSDPerMillion = price.LongOutputUSDPerMillion
+	}
+	return price, true
+}
+
+func CalculateGeminiTextQuota(name string, channelType int, promptTokens int, completionTokens int, groupRatio float64) (int64, bool) {
+	price, ok := getGeminiTextPrice(name, channelType, promptTokens)
+	if !ok {
+		return 0, false
+	}
+	inputQuota := float64(promptTokens) * pricePerMillionTokensToRatio(price.InputUSDPerMillion)
+	outputQuota := float64(completionTokens) * pricePerMillionTokensToRatio(price.OutputUSDPerMillion)
+	quota := int64(math.Ceil((inputQuota + outputQuota) * groupRatio))
+	if groupRatio != 0 && promptTokens+completionTokens > 0 && quota <= 0 {
+		quota = 1
+	}
+	return quota, true
 }
 
 var (

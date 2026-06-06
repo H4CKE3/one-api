@@ -35,31 +35,81 @@ const chartConfig = {
     },
   },
   colors: {
-    requests: '#4318FF',
-    quota: '#00B5D8',
-    tokens: '#6C63FF',
+    requests: '#2563EB',
+    quota: '#F59E0B',
+    tokens: '#EC4899',
   },
   barColors: [
-    '#4318FF', // 深紫色
-    '#00B5D8', // 青色
-    '#6C63FF', // 紫色
-    '#05CD99', // 绿色
-    '#FFB547', // 橙色
-    '#FF5E7D', // 粉色
-    '#41B883', // 翠绿
-    '#7983FF', // 淡紫
-    '#FF8F6B', // 珊瑚色
-    '#49BEFF', // 天蓝
+    '#33527A',
+    '#14B8A6',
+    '#F59E0B',
+    '#EC4899',
+    '#22C55E',
+    '#6366F1',
+    '#0EA5E9',
+    '#A855F7',
+    '#F97316',
+    '#64748B',
   ],
+};
+
+const analysisTabs = [
+  {
+    key: 'tokens',
+    label: 'Token 分布',
+    title: '模型 Token 分布',
+    totalLabel: '总 Tokens',
+  },
+  {
+    key: 'quota',
+    label: '额度分布',
+    title: '模型额度分布',
+    totalLabel: '总额度',
+  },
+  {
+    key: 'requests',
+    label: '请求次数',
+    title: '模型请求次数',
+    totalLabel: '总请求',
+  },
+];
+
+const getQuotaPerUnit = () => {
+  const quotaPerUnit = parseFloat(
+    localStorage.getItem('quota_per_unit') || '500000'
+  );
+  return Number.isFinite(quotaPerUnit) && quotaPerUnit > 0
+    ? quotaPerUnit
+    : 500000;
+};
+
+const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`;
+
+const formatTokenCount = (value) =>
+  Math.round(Number(value || 0)).toLocaleString('en-US');
+
+const formatCompactNumber = (value) => {
+  const number = Number(value || 0);
+  if (Math.abs(number) >= 1000000000) {
+    return `${(number / 1000000000).toFixed(1)}B`;
+  }
+  if (Math.abs(number) >= 1000000) {
+    return `${(number / 1000000).toFixed(1)}M`;
+  }
+  if (Math.abs(number) >= 1000) {
+    return `${(number / 1000).toFixed(1)}K`;
+  }
+  return Math.round(number).toString();
 };
 
 const Dashboard = () => {
   const { t } = useTranslation();
   const [data, setData] = useState([]);
+  const [activeAnalysis, setActiveAnalysis] = useState('tokens');
   const [summaryData, setSummaryData] = useState({
-    todayRequests: 0,
-    todayQuota: 0,
-    todayTokens: 0,
+    totalRequests: 0,
+    totalQuota: 0,
+    totalTokens: 0,
   });
 
   useEffect(() => {
@@ -84,24 +134,22 @@ const Dashboard = () => {
   const calculateSummary = (dashboardData) => {
     if (!Array.isArray(dashboardData) || dashboardData.length === 0) {
       setSummaryData({
-        todayRequests: 0,
-        todayQuota: 0,
-        todayTokens: 0,
+        totalRequests: 0,
+        totalQuota: 0,
+        totalTokens: 0,
       });
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const todayData = dashboardData.filter((item) => item.Day === today);
-
     const summary = {
-      todayRequests: todayData.reduce(
+      totalRequests: dashboardData.reduce(
         (sum, item) => sum + item.RequestCount,
         0
       ),
-      todayQuota:
-        todayData.reduce((sum, item) => sum + item.Quota, 0) / 1000000,
-      todayTokens: todayData.reduce(
+      totalQuota:
+        dashboardData.reduce((sum, item) => sum + item.Quota, 0) /
+        getQuotaPerUnit(),
+      totalTokens: dashboardData.reduce(
         (sum, item) => sum + item.PromptTokens + item.CompletionTokens,
         0
       ),
@@ -143,7 +191,7 @@ const Dashboard = () => {
     // 填充实际数据
     data.forEach((item) => {
       dailyData[item.Day].requests += item.RequestCount;
-      dailyData[item.Day].quota += item.Quota / 1000000;
+      dailyData[item.Day].quota += item.Quota / getQuotaPerUnit();
       dailyData[item.Day].tokens += item.PromptTokens + item.CompletionTokens;
     });
 
@@ -152,8 +200,32 @@ const Dashboard = () => {
     );
   };
 
+  const getMetricValue = (item, metricKey) => {
+    if (metricKey === 'quota') {
+      return item.Quota / getQuotaPerUnit();
+    }
+    if (metricKey === 'requests') {
+      return item.RequestCount;
+    }
+    return item.PromptTokens + item.CompletionTokens;
+  };
+
+  const formatAnalysisValue = (value, metricKey = activeAnalysis) => {
+    if (metricKey === 'quota') {
+      return formatCurrency(value);
+    }
+    return formatTokenCount(value);
+  };
+
+  const formatAnalysisAxisValue = (value) => {
+    if (activeAnalysis === 'quota') {
+      return `$${formatCompactNumber(value).replace(/\.0([KMB])$/, '$1')}`;
+    }
+    return formatCompactNumber(value);
+  };
+
   // 处理数据以供堆叠柱状图使用
-  const processModelData = () => {
+  const processModelData = (metricKey) => {
     const timeData = {};
 
     // 获取日期范围
@@ -187,11 +259,31 @@ const Dashboard = () => {
 
     // 填充实际数据
     data.forEach((item) => {
-      timeData[item.Day][item.ModelName] =
-        item.PromptTokens + item.CompletionTokens;
+      timeData[item.Day][item.ModelName] += getMetricValue(item, metricKey);
     });
 
     return Object.values(timeData).sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const processModelRankingData = () => {
+    const modelStats = {};
+    data.forEach((item) => {
+      const modelName = item.ModelName || 'unknown';
+      if (!modelStats[modelName]) {
+        modelStats[modelName] = {
+          model: modelName,
+          requests: 0,
+          quota: 0,
+          tokens: 0,
+        };
+      }
+      modelStats[modelName].requests += item.RequestCount;
+      modelStats[modelName].quota += item.Quota / getQuotaPerUnit();
+      modelStats[modelName].tokens += item.PromptTokens + item.CompletionTokens;
+    });
+    return Object.values(modelStats).sort(
+      (a, b) => b[activeAnalysis] - a[activeAnalysis]
+    );
   };
 
   // 获取所有唯一的模型名称
@@ -200,8 +292,17 @@ const Dashboard = () => {
   };
 
   const timeSeriesData = processTimeSeriesData();
-  const modelData = processModelData();
+  const modelData = processModelData(activeAnalysis);
+  const modelRankingData = processModelRankingData();
   const models = getUniqueModels();
+  const activeAnalysisConfig =
+    analysisTabs.find((item) => item.key === activeAnalysis) || analysisTabs[0];
+  const activeTotalValue =
+    activeAnalysis === 'quota'
+      ? summaryData.totalQuota
+      : activeAnalysis === 'requests'
+      ? summaryData.totalRequests
+      : summaryData.totalTokens;
 
   // 生成随机颜色
   const getRandomColor = (index) => {
@@ -233,223 +334,219 @@ const Dashboard = () => {
     padding: { left: 30, right: 30 }, // 增加两侧的内边距，确保首尾标签完整显示
   };
 
+  const renderMetricCard = ({
+    title,
+    value,
+    dataKey,
+    color,
+    tooltipLabel,
+    formatter,
+  }) => (
+    <Card fluid className='chart-card metric-card'>
+      <Card.Content>
+        <div className='metric-card-header'>
+          <div>
+            <div className='metric-card-title'>{title}</div>
+            <div className='metric-card-value'>{value}</div>
+            <div className='metric-card-subtitle'>最近 7 天</div>
+          </div>
+        </div>
+        <div className='metric-chart-container'>
+          <ResponsiveContainer width='100%' height={120}>
+            <LineChart data={timeSeriesData}>
+              <CartesianGrid
+                strokeDasharray='3 3'
+                vertical={chartConfig.lineChart.grid.vertical}
+                horizontal={chartConfig.lineChart.grid.horizontal}
+                opacity={chartConfig.lineChart.grid.opacity}
+              />
+              <XAxis {...xAxisConfig} />
+              <YAxis hide={true} />
+              <Tooltip
+                contentStyle={{
+                  background: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                }}
+                formatter={(tooltipValue) => [
+                  formatter(tooltipValue),
+                  tooltipLabel,
+                ]}
+                labelFormatter={(label) =>
+                  `${t('dashboard.statistics.tooltip.date')}: ${formatDate(
+                    label
+                  )}`
+                }
+              />
+              <Line
+                type='monotone'
+                dataKey={dataKey}
+                stroke={color}
+                strokeWidth={chartConfig.lineChart.line.strokeWidth}
+                dot={chartConfig.lineChart.line.dot}
+                activeDot={chartConfig.lineChart.line.activeDot}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </Card.Content>
+    </Card>
+  );
+
   return (
     <div className='dashboard-container'>
-      {/* 三个并排的折线图 */}
       <Grid columns={3} stackable className='charts-grid'>
         <Grid.Column>
-          <Card fluid className='chart-card'>
-            <Card.Content>
-              <Card.Header>
-                {t('dashboard.charts.requests.title')}
-                {/* <span className='stat-value'>{summaryData.todayRequests}</span> */}
-              </Card.Header>
-              <div className='chart-container'>
-                <ResponsiveContainer
-                  width='100%'
-                  height={120}
-                  margin={{ left: 10, right: 10 }} // 调整容器边距
-                >
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      vertical={chartConfig.lineChart.grid.vertical}
-                      horizontal={chartConfig.lineChart.grid.horizontal}
-                      opacity={chartConfig.lineChart.grid.opacity}
-                    />
-                    <XAxis {...xAxisConfig} />
-                    <YAxis hide={true} />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [
-                        value,
-                        t('dashboard.charts.requests.tooltip'),
-                      ]}
-                      labelFormatter={(label) =>
-                        `${t(
-                          'dashboard.statistics.tooltip.date'
-                        )}: ${formatDate(label)}`
-                      }
-                    />
-                    <Line
-                      type='monotone'
-                      dataKey='requests'
-                      stroke={chartConfig.colors.requests}
-                      strokeWidth={chartConfig.lineChart.line.strokeWidth}
-                      dot={chartConfig.lineChart.line.dot}
-                      activeDot={chartConfig.lineChart.line.activeDot}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card.Content>
-          </Card>
+          {renderMetricCard({
+            title: t('dashboard.charts.requests.title'),
+            value: formatTokenCount(summaryData.totalRequests),
+            dataKey: 'requests',
+            color: chartConfig.colors.requests,
+            tooltipLabel: t('dashboard.charts.requests.tooltip'),
+            formatter: formatTokenCount,
+          })}
         </Grid.Column>
 
         <Grid.Column>
-          <Card fluid className='chart-card'>
-            <Card.Content>
-              <Card.Header>
-                {t('dashboard.charts.quota.title')}
-                {/* <span className='stat-value'>
-                  ${summaryData.todayQuota.toFixed(3)}
-                </span> */}
-              </Card.Header>
-              <div className='chart-container'>
-                <ResponsiveContainer
-                  width='100%'
-                  height={120}
-                  margin={{ left: 10, right: 10 }} // 调整容器边距
-                >
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      vertical={chartConfig.lineChart.grid.vertical}
-                      horizontal={chartConfig.lineChart.grid.horizontal}
-                      opacity={chartConfig.lineChart.grid.opacity}
-                    />
-                    <XAxis {...xAxisConfig} />
-                    <YAxis hide={true} />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [
-                        value.toFixed(6),
-                        t('dashboard.charts.quota.tooltip'),
-                      ]}
-                      labelFormatter={(label) =>
-                        `${t(
-                          'dashboard.statistics.tooltip.date'
-                        )}: ${formatDate(label)}`
-                      }
-                    />
-                    <Line
-                      type='monotone'
-                      dataKey='quota'
-                      stroke={chartConfig.colors.quota}
-                      strokeWidth={chartConfig.lineChart.line.strokeWidth}
-                      dot={chartConfig.lineChart.line.dot}
-                      activeDot={chartConfig.lineChart.line.activeDot}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card.Content>
-          </Card>
+          {renderMetricCard({
+            title: t('dashboard.charts.quota.title'),
+            value: formatCurrency(summaryData.totalQuota),
+            dataKey: 'quota',
+            color: chartConfig.colors.quota,
+            tooltipLabel: t('dashboard.charts.quota.tooltip'),
+            formatter: formatCurrency,
+          })}
         </Grid.Column>
 
         <Grid.Column>
-          <Card fluid className='chart-card'>
-            <Card.Content>
-              <Card.Header>
-                {t('dashboard.charts.tokens.title')}
-                {/* <span className='stat-value'>{summaryData.todayTokens}</span> */}
-              </Card.Header>
-              <div className='chart-container'>
-                <ResponsiveContainer
-                  width='100%'
-                  height={120}
-                  margin={{ left: 10, right: 10 }} // 调整容器边距
-                >
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      vertical={chartConfig.lineChart.grid.vertical}
-                      horizontal={chartConfig.lineChart.grid.horizontal}
-                      opacity={chartConfig.lineChart.grid.opacity}
-                    />
-                    <XAxis {...xAxisConfig} />
-                    <YAxis hide={true} />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [
-                        value,
-                        t('dashboard.charts.tokens.tooltip'),
-                      ]}
-                      labelFormatter={(label) =>
-                        `${t(
-                          'dashboard.statistics.tooltip.date'
-                        )}: ${formatDate(label)}`
-                      }
-                    />
-                    <Line
-                      type='monotone'
-                      dataKey='tokens'
-                      stroke={chartConfig.colors.tokens}
-                      strokeWidth={chartConfig.lineChart.line.strokeWidth}
-                      dot={chartConfig.lineChart.line.dot}
-                      activeDot={chartConfig.lineChart.line.activeDot}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card.Content>
-          </Card>
+          {renderMetricCard({
+            title: t('dashboard.charts.tokens.title'),
+            value: formatTokenCount(summaryData.totalTokens),
+            dataKey: 'tokens',
+            color: chartConfig.colors.tokens,
+            tooltipLabel: t('dashboard.charts.tokens.tooltip'),
+            formatter: formatTokenCount,
+          })}
         </Grid.Column>
       </Grid>
 
-      {/* 模型使用统计 */}
-      <Card fluid className='chart-card'>
+      <Card fluid className='chart-card analysis-card'>
         <Card.Content>
-          <Card.Header>{t('dashboard.statistics.title')}</Card.Header>
-          <div className='chart-container'>
-            <ResponsiveContainer width='100%' height={300}>
-              <BarChart data={modelData}>
-                <CartesianGrid
-                  strokeDasharray='3 3'
-                  vertical={false}
-                  opacity={0.1}
-                />
-                <XAxis {...xAxisConfig} />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#A3AED0' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: '#fff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  }}
-                  labelFormatter={(label) =>
-                    `${t('dashboard.statistics.tooltip.date')}: ${formatDate(
-                      label
-                    )}`
-                  }
-                />
-                <Legend
-                  wrapperStyle={{
-                    paddingTop: '20px',
-                  }}
-                />
-                {models.map((model, index) => (
-                  <Bar
-                    key={model}
-                    dataKey={model}
-                    stackId='a'
-                    fill={getRandomColor(index)}
-                    name={model}
-                    radius={[4, 4, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+          <div className='analysis-header'>
+            <div>
+              <div className='analysis-title'>模型数据分析</div>
+              <div className='analysis-subtitle'>最近 7 天 · 按模型聚合</div>
+            </div>
+            <div className='analysis-tabs'>
+              {analysisTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type='button'
+                  className={`analysis-tab${
+                    activeAnalysis === tab.key ? ' active' : ''
+                  }`}
+                  onClick={() => setActiveAnalysis(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className='analysis-body'>
+            <div className='analysis-chart-panel'>
+              <div className='analysis-chart-heading'>
+                <div>
+                  <div className='analysis-chart-title'>
+                    {activeAnalysisConfig.title}
+                  </div>
+                  <div className='analysis-chart-total'>
+                    {activeAnalysisConfig.totalLabel}:{' '}
+                    {formatAnalysisValue(activeTotalValue)}
+                  </div>
+                </div>
+              </div>
+              <div className='chart-container analysis-chart-container'>
+                <ResponsiveContainer width='100%' height={320}>
+                  <BarChart data={modelData}>
+                    <CartesianGrid
+                      strokeDasharray='3 3'
+                      vertical={false}
+                      opacity={0.12}
+                    />
+                    <XAxis {...xAxisConfig} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 12, fill: '#8F9BB3' }}
+                      tickFormatter={formatAnalysisAxisValue}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      }}
+                      labelFormatter={(label) =>
+                        `${t(
+                          'dashboard.statistics.tooltip.date'
+                        )}: ${formatDate(label)}`
+                      }
+                      formatter={(value, name) => [
+                        formatAnalysisValue(value),
+                        name,
+                      ]}
+                    />
+                    <Legend
+                      wrapperStyle={{
+                        paddingTop: '20px',
+                      }}
+                    />
+                    {models.map((model, index) => (
+                      <Bar
+                        key={model}
+                        dataKey={model}
+                        stackId='a'
+                        fill={getRandomColor(index)}
+                        name={model}
+                        radius={[4, 4, 0, 0]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className='model-ranking-panel'>
+              <div className='model-ranking-title'>模型排行</div>
+              <div className='model-ranking-subtitle'>
+                按 {activeAnalysisConfig.label} 排序
+              </div>
+              <div className='model-ranking-list'>
+                {modelRankingData.length === 0 ? (
+                  <div className='model-ranking-empty'>暂无数据</div>
+                ) : (
+                  modelRankingData.map((item, index) => (
+                    <div className='model-ranking-row' key={item.model}>
+                      <div className='model-ranking-index'>{index + 1}</div>
+                      <div className='model-ranking-content'>
+                        <div className='model-ranking-name'>{item.model}</div>
+                        <div className='model-ranking-meta'>
+                          请求 {formatTokenCount(item.requests)} · 额度{' '}
+                          {formatCurrency(item.quota)} · Tokens{' '}
+                          {formatTokenCount(item.tokens)}
+                        </div>
+                      </div>
+                      <div className='model-ranking-value'>
+                        {formatAnalysisValue(item[activeAnalysis])}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </Card.Content>
       </Card>
