@@ -1,0 +1,16 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.manual-release
+      - -t
+      - ${_IMAGE}:${_TAG}
+      - .
+
+images:
+  - ${_IMAGE}:${_TAG}
+
+substitutions:
+  _IMAGE: asia-northeast1-docker.pkg.dev/optimal-chimera-472503-d9/cloud-run-source-deploy/one-api/one-api
+  _TAG: manual-local
