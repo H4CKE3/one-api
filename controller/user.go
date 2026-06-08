@@ -261,8 +261,9 @@ func GetUser(c *gin.Context) {
 
 func GetUserDashboard(c *gin.Context) {
 	id := c.GetInt(ctxkey.Id)
+	days := getDashboardDays(c)
 	now := time.Now()
-	startOfDay := now.Truncate(24*time.Hour).AddDate(0, 0, -6).Unix()
+	startOfDay := now.Truncate(24*time.Hour).AddDate(0, 0, -(days - 1)).Unix()
 	endOfDay := now.Truncate(24 * time.Hour).Add(24*time.Hour - time.Second).Unix()
 
 	dashboards, err := model.SearchLogsByDayAndModel(id, int(startOfDay), int(endOfDay))
@@ -280,6 +281,17 @@ func GetUserDashboard(c *gin.Context) {
 		"data":    dashboards,
 	})
 	return
+}
+
+func getDashboardDays(c *gin.Context) int {
+	days := 7
+	if daysParam := c.Query("days"); daysParam != "" {
+		parsedDays, err := strconv.Atoi(daysParam)
+		if err == nil && parsedDays == 30 {
+			days = 30
+		}
+	}
+	return days
 }
 
 func GenerateAccessToken(c *gin.Context) {

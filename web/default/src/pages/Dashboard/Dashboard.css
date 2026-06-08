@@ -27,6 +27,43 @@
     margin-bottom: 1rem !important;
 }
 
+.dashboard-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.dashboard-range-switch {
+    display: inline-flex;
+    gap: 6px;
+    padding: 4px;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.dashboard-range-button {
+    border: none;
+    background: transparent;
+    color: #626d7a;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.95em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.dashboard-range-button:hover {
+    color: #1f2933;
+}
+
+.dashboard-range-button.active {
+    background: #1f2933;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(31, 41, 51, 0.12);
+}
+
 .charts-grid .column {
     padding: 0.5rem !important;
 }
@@ -274,6 +311,10 @@
     
     .chart-container {
         padding: 12px;
+    }
+
+    .dashboard-toolbar {
+        justify-content: flex-start;
     }
 
     .metric-card .content {

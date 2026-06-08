@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Card, Grid} from 'semantic-ui-react';
 import {
@@ -102,9 +102,19 @@ const formatCompactNumber = (value) => {
   return Math.round(number).toString();
 };
 
+const dashboardRangeOptions = [7, 30];
+
+const formatLocalDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const Dashboard = () => {
   const { t } = useTranslation();
   const [data, setData] = useState([]);
+  const [dashboardDays, setDashboardDays] = useState(7);
   const [activeAnalysis, setActiveAnalysis] = useState('tokens');
   const [summaryData, setSummaryData] = useState({
     totalRequests: 0,
@@ -112,26 +122,7 @@ const Dashboard = () => {
     totalTokens: 0,
   });
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const response = await axios.get('/api/user/dashboard');
-      if (response.data.success) {
-        const dashboardData = response.data.data || [];
-        setData(dashboardData);
-        calculateSummary(dashboardData);
-      }
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-      setData([]);
-      calculateSummary([]);
-    }
-  };
-
-  const calculateSummary = (dashboardData) => {
+  const calculateSummary = useCallback((dashboardData) => {
     if (!Array.isArray(dashboardData) || dashboardData.length === 0) {
       setSummaryData({
         totalRequests: 0,
@@ -156,30 +147,46 @@ const Dashboard = () => {
     };
 
     setSummaryData(summary);
+  }, []);
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const response = await axios.get(
+        `/api/user/dashboard?days=${dashboardDays}`
+      );
+      if (response.data.success) {
+        const dashboardData = response.data.data || [];
+        setData(dashboardData);
+        calculateSummary(dashboardData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      setData([]);
+      calculateSummary([]);
+    }
+  }, [calculateSummary, dashboardDays]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const getRangeStartDate = () => {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (dashboardDays - 1));
+    startDate.setHours(0, 0, 0, 0);
+    return startDate;
   };
 
   // 处理数据以供折线图使用，补充缺失的日期
   const processTimeSeriesData = () => {
     const dailyData = {};
-
-    // 获取日期范围
-    const dates = data.map((item) => item.Day);
     const maxDate = new Date(); // 总是使用今天作为最后一天
-    let minDate =
-      dates.length > 0
-        ? new Date(Math.min(...dates.map((d) => new Date(d))))
-        : new Date();
-
-    // 确保至少显示7天的数据
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // -6是因为包含今天
-    if (minDate > sevenDaysAgo) {
-      minDate = sevenDaysAgo;
-    }
+    maxDate.setHours(0, 0, 0, 0);
+    const minDate = getRangeStartDate();
 
     // 生成所有日期
     for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = formatLocalDateKey(d);
       dailyData[dateStr] = {
         date: dateStr,
         requests: 0,
@@ -190,6 +197,9 @@ const Dashboard = () => {
 
     // 填充实际数据
     data.forEach((item) => {
+      if (!dailyData[item.Day]) {
+        return;
+      }
       dailyData[item.Day].requests += item.RequestCount;
       dailyData[item.Day].quota += item.Quota / getQuotaPerUnit();
       dailyData[item.Day].tokens += item.PromptTokens + item.CompletionTokens;
@@ -227,25 +237,13 @@ const Dashboard = () => {
   // 处理数据以供堆叠柱状图使用
   const processModelData = (metricKey) => {
     const timeData = {};
-
-    // 获取日期范围
-    const dates = data.map((item) => item.Day);
     const maxDate = new Date(); // 总是使用今天作为最后一天
-    let minDate =
-      dates.length > 0
-        ? new Date(Math.min(...dates.map((d) => new Date(d))))
-        : new Date();
-
-    // 确保至少显示7天的数据
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // -6是因为包含今天
-    if (minDate > sevenDaysAgo) {
-      minDate = sevenDaysAgo;
-    }
+    maxDate.setHours(0, 0, 0, 0);
+    const minDate = getRangeStartDate();
 
     // 生成所有日期
     for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = formatLocalDateKey(d);
       timeData[dateStr] = {
         date: dateStr,
       };
@@ -259,6 +257,9 @@ const Dashboard = () => {
 
     // 填充实际数据
     data.forEach((item) => {
+      if (!timeData[item.Day]) {
+        return;
+      }
       timeData[item.Day][item.ModelName] += getMetricValue(item, metricKey);
     });
 
@@ -281,9 +282,9 @@ const Dashboard = () => {
       modelStats[modelName].quota += item.Quota / getQuotaPerUnit();
       modelStats[modelName].tokens += item.PromptTokens + item.CompletionTokens;
     });
-    return Object.values(modelStats).sort(
-      (a, b) => b[activeAnalysis] - a[activeAnalysis]
-    );
+    return Object.values(modelStats)
+      .sort((a, b) => b[activeAnalysis] - a[activeAnalysis])
+      .slice(0, 4);
   };
 
   // 获取所有唯一的模型名称
@@ -329,10 +330,12 @@ const Dashboard = () => {
       textAnchor: 'middle', // 文本居中对齐
     },
     tickFormatter: formatDate,
-    interval: 0,
+    interval: dashboardDays === 7 ? 0 : 4,
     minTickGap: 5,
     padding: { left: 30, right: 30 }, // 增加两侧的内边距，确保首尾标签完整显示
   };
+
+  const rangeLabel = `最近 ${dashboardDays} 天`;
 
   const renderMetricCard = ({
     title,
@@ -348,7 +351,7 @@ const Dashboard = () => {
           <div>
             <div className='metric-card-title'>{title}</div>
             <div className='metric-card-value'>{value}</div>
-            <div className='metric-card-subtitle'>最近 7 天</div>
+            <div className='metric-card-subtitle'>{rangeLabel}</div>
           </div>
         </div>
         <div className='metric-chart-container'>
@@ -396,6 +399,23 @@ const Dashboard = () => {
 
   return (
     <div className='dashboard-container'>
+      <div className='dashboard-toolbar'>
+        <div className='dashboard-range-switch'>
+          {dashboardRangeOptions.map((days) => (
+            <button
+              key={days}
+              type='button'
+              className={`dashboard-range-button${
+                dashboardDays === days ? ' active' : ''
+              }`}
+              onClick={() => setDashboardDays(days)}
+            >
+              {days} 天
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Grid columns={3} stackable className='charts-grid'>
         <Grid.Column>
           {renderMetricCard({
@@ -436,7 +456,9 @@ const Dashboard = () => {
           <div className='analysis-header'>
             <div>
               <div className='analysis-title'>模型数据分析</div>
-              <div className='analysis-subtitle'>最近 7 天 · 按模型聚合</div>
+              <div className='analysis-subtitle'>
+                {rangeLabel} · 按模型聚合
+              </div>
             </div>
             <div className='analysis-tabs'>
               {analysisTabs.map((tab) => (
@@ -522,7 +544,7 @@ const Dashboard = () => {
             <div className='model-ranking-panel'>
               <div className='model-ranking-title'>模型排行</div>
               <div className='model-ranking-subtitle'>
-                按 {activeAnalysisConfig.label} 排序
+                按 {activeAnalysisConfig.label} 排序 · 展示前 4 个
               </div>
               <div className='model-ranking-list'>
                 {modelRankingData.length === 0 ? (
