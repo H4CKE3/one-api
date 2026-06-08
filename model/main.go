@@ -3,6 +3,7 @@ package model
 import (
 	"database/sql"
 	"fmt"
+	"github.com/glebarez/sqlite"
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/common/env"
@@ -11,7 +12,6 @@ import (
 	"github.com/songquanpeng/one-api/common/random"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"os"
 	"strings"
@@ -161,6 +161,22 @@ func migrateDB() error {
 		return err
 	}
 	if err = DB.AutoMigrate(&ChatRecord{}); err != nil {
+		return err
+	}
+	if err = migrateChatRecordDB(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateChatRecordDB() error {
+	if !common.UsingMySQL {
+		return nil
+	}
+	if err := DB.Exec("ALTER TABLE chat_records MODIFY COLUMN content LONGTEXT NOT NULL").Error; err != nil {
+		return err
+	}
+	if err := DB.Exec("ALTER TABLE chat_records MODIFY COLUMN error_message LONGTEXT").Error; err != nil {
 		return err
 	}
 	return nil
