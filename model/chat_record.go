@@ -11,7 +11,7 @@ type ChatRecord struct {
 	TokenId          int    `json:"token_id" gorm:"not null;index"`                // 使用的Token ID
 	ConversationId   string `json:"conversation_id" gorm:"type:varchar(64);index"` // 会话ID，用于关联同一轮对话
 	Role             string `json:"role" gorm:"type:varchar(20);not null"`         // 角色：user, assistant, system, developer等
-	Content          string `json:"content" gorm:"type:text;not null"`             // 消息内容
+	Content          string `json:"content" gorm:"type:longtext;not null"`         // 消息内容
 	Model            string `json:"model" gorm:"type:varchar(100);not null"`       // 使用的模型名称
 	ChannelId        int    `json:"channel_id" gorm:"not null;index"`              // 渠道ID
 	ChannelName      string `json:"channel_name" gorm:"type:varchar(100)"`         // 渠道名称
@@ -23,7 +23,7 @@ type ChatRecord struct {
 	RequestId        string `json:"request_id" gorm:"type:varchar(128);index"`     // 请求ID，用于追踪
 	ResponseTime     int    `json:"response_time" gorm:"default:0"`                // 响应时间(毫秒)
 	Status           int    `json:"status" gorm:"default:1"`                       // 状态：1-成功，2-失败，3-部分成功
-	ErrorMessage     string `json:"error_message" gorm:"type:text"`                // 错误信息（包含详细错误日志）
+	ErrorMessage     string `json:"error_message" gorm:"type:longtext"`            // 错误信息（包含详细错误日志）
 	CreatedTime      int64  `json:"created_time" gorm:"bigint;not null;index"`     // 创建时间
 	UpdatedTime      int64  `json:"updated_time" gorm:"bigint;not null"`           // 更新时间
 }
