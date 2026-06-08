@@ -173,13 +173,30 @@ func migrateChatRecordDB() error {
 	if !common.UsingMySQL {
 		return nil
 	}
-	if err := DB.Exec("ALTER TABLE chat_records MODIFY COLUMN content LONGTEXT NOT NULL").Error; err != nil {
+	if err := ensureMySQLColumnType("chat_records", "content", "LONGTEXT NOT NULL"); err != nil {
 		return err
 	}
-	if err := DB.Exec("ALTER TABLE chat_records MODIFY COLUMN error_message LONGTEXT").Error; err != nil {
+	if err := ensureMySQLColumnType("chat_records", "error_message", "LONGTEXT"); err != nil {
 		return err
 	}
 	return nil
+}
+
+func ensureMySQLColumnType(tableName, columnName, columnType string) error {
+	var dataType string
+	if err := DB.Raw(`
+		SELECT DATA_TYPE
+		FROM INFORMATION_SCHEMA.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME = ?
+		  AND COLUMN_NAME = ?
+	`, tableName, columnName).Scan(&dataType).Error; err != nil {
+		return err
+	}
+	if strings.EqualFold(dataType, "longtext") {
+		return nil
+	}
+	return DB.Exec(fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s %s", tableName, columnName, columnType)).Error
 }
 
 func InitLogDB() {
