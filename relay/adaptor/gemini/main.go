@@ -110,6 +110,7 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 		}
 	}
 	shouldAddDummyModelMessage := false
+	toolCallNames := make(map[string]string)
 	for _, message := range textRequest.Messages {
 		content := ChatContent{
 			Role: message.Role,
@@ -155,6 +156,15 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 		}
 		content.Parts = parts
 
+		if len(message.ToolCalls) > 0 {
+			content.Parts = openAIToolCallsToGeminiParts(message.ToolCalls, toolCallNames)
+		}
+		if message.Role == "tool" {
+			content.Role = "user"
+			content.Parts = []Part{
+				openAIToolResultToGeminiPart(message, toolCallNames),
+			}
+		}
 		// there's no assistant role in gemini and API shall vomit if Role is not user or model
 		if content.Role == "assistant" {
 			content.Role = "model"
@@ -188,6 +198,68 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *ChatRequest {
 	}
 
 	return &geminiRequest
+}
+
+func openAIToolCallsToGeminiParts(toolCalls []model.Tool, toolCallNames map[string]string) []Part {
+	parts := make([]Part, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		functionName := toolCall.Function.Name
+		if toolCall.Id != "" && functionName != "" {
+			toolCallNames[toolCall.Id] = functionName
+		}
+		if functionName == "" {
+			continue
+		}
+		parts = append(parts, Part{
+			FunctionCall: &FunctionCall{
+				FunctionName: functionName,
+				Arguments:    parseFunctionArguments(toolCall.Function.Arguments),
+			},
+		})
+	}
+	return parts
+}
+
+func openAIToolResultToGeminiPart(message model.Message, toolCallNames map[string]string) Part {
+	functionName := ""
+	if message.Name != nil {
+		functionName = *message.Name
+	}
+	if functionName == "" {
+		functionName = toolCallNames[message.ToolCallId]
+	}
+	if functionName == "" {
+		functionName = message.ToolCallId
+	}
+	return Part{
+		FunctionResponse: &FunctionResponse{
+			FunctionName: functionName,
+			Response:     parseFunctionResponse(message.Content),
+		},
+	}
+}
+
+func parseFunctionArguments(arguments any) any {
+	if value, ok := arguments.(string); ok {
+		var parsed any
+		if err := json.Unmarshal([]byte(value), &parsed); err == nil {
+			return parsed
+		}
+	}
+	return arguments
+}
+
+func parseFunctionResponse(content any) any {
+	if value, ok := content.(string); ok {
+		var parsed any
+		if err := json.Unmarshal([]byte(value), &parsed); err == nil {
+			if _, ok := parsed.(map[string]any); ok {
+				return parsed
+			}
+		}
+		return map[string]any{"result": value}
+	}
+	return map[string]any{"result": content}
 }
 
 func assignOrEmptyToolConfig(value map[string]any) any {

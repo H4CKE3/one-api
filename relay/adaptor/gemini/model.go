@@ -45,10 +45,16 @@ type FunctionCall struct {
 	Arguments    any    `json:"args"`
 }
 
+type FunctionResponse struct {
+	FunctionName string `json:"name"`
+	Response     any    `json:"response"`
+}
+
 type Part struct {
-	Text         string        `json:"text,omitempty"`
-	InlineData   *InlineData   `json:"inlineData,omitempty"`
-	FunctionCall *FunctionCall `json:"functionCall,omitempty"`
+	Text             string            `json:"text,omitempty"`
+	InlineData       *InlineData       `json:"inlineData,omitempty"`
+	FunctionCall     *FunctionCall     `json:"functionCall,omitempty"`
+	FunctionResponse *FunctionResponse `json:"functionResponse,omitempty"`
 }
 
 type ChatContent struct {
