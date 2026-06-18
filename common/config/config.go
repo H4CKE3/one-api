@@ -99,6 +99,10 @@ var QuotaRemindThreshold int64 = 1000
 var PreConsumedQuota int64 = 500
 var ApproximateTokenEnabled = false
 var RetryTimes = 0
+var RetryBackoffBaseMilliseconds = env.Int("RETRY_BACKOFF_BASE_MS", 250)
+var RetryBackoffMaxMilliseconds = env.Int("RETRY_BACKOFF_MAX_MS", 4000)
+var RetryJitterMilliseconds = env.Int("RETRY_JITTER_MS", 250)
+var ChannelRateLimitCooldownSeconds = env.Int("CHANNEL_RATE_LIMIT_COOLDOWN_SECONDS", 60)
 
 var RootUserEmail = ""
 

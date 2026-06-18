@@ -32,6 +32,10 @@ const OperationSetting = () => {
     DisplayTokenStatEnabled: '',
     ApproximateTokenEnabled: '',
     RetryTimes: 0,
+    RetryBackoffBaseMilliseconds: 0,
+    RetryBackoffMaxMilliseconds: 0,
+    RetryJitterMilliseconds: 0,
+    ChannelRateLimitCooldownSeconds: 0,
   });
   const [originInputs, setOriginInputs] = useState({});
   let [loading, setLoading] = useState(false);
@@ -165,6 +169,44 @@ const OperationSetting = () => {
         if (originInputs['RetryTimes'] !== inputs.RetryTimes) {
           await updateOption('RetryTimes', inputs.RetryTimes);
         }
+        if (
+          originInputs['RetryBackoffBaseMilliseconds'] !==
+          inputs.RetryBackoffBaseMilliseconds
+        ) {
+          await updateOption(
+            'RetryBackoffBaseMilliseconds',
+            inputs.RetryBackoffBaseMilliseconds
+          );
+        }
+        if (
+          originInputs['RetryBackoffMaxMilliseconds'] !==
+          inputs.RetryBackoffMaxMilliseconds
+        ) {
+          await updateOption(
+            'RetryBackoffMaxMilliseconds',
+            inputs.RetryBackoffMaxMilliseconds
+          );
+        }
+        if (
+          originInputs['RetryJitterMilliseconds'] !==
+          inputs.RetryJitterMilliseconds
+        ) {
+          await updateOption(
+            'RetryJitterMilliseconds',
+            inputs.RetryJitterMilliseconds
+          );
+        }
+        if (
+          originInputs['ChannelRateLimitCooldownSeconds'] !==
+          inputs.ChannelRateLimitCooldownSeconds
+        ) {
+          await updateOption(
+            'ChannelRateLimitCooldownSeconds',
+            inputs.ChannelRateLimitCooldownSeconds
+          );
+        }
+        break;
+      default:
         break;
     }
   };
@@ -407,6 +449,60 @@ const OperationSetting = () => {
               value={inputs.RetryTimes}
               placeholder={t(
                 'setting.operation.general.retry_times_placeholder'
+              )}
+            />
+          </Form.Group>
+          <Form.Group widths={4}>
+            <Form.Input
+              label={t('setting.operation.general.retry_backoff_base')}
+              name='RetryBackoffBaseMilliseconds'
+              type='number'
+              step='1'
+              min='0'
+              onChange={handleInputChange}
+              autoComplete='new-password'
+              value={inputs.RetryBackoffBaseMilliseconds}
+              placeholder={t(
+                'setting.operation.general.retry_backoff_base_placeholder'
+              )}
+            />
+            <Form.Input
+              label={t('setting.operation.general.retry_backoff_max')}
+              name='RetryBackoffMaxMilliseconds'
+              type='number'
+              step='1'
+              min='0'
+              onChange={handleInputChange}
+              autoComplete='new-password'
+              value={inputs.RetryBackoffMaxMilliseconds}
+              placeholder={t(
+                'setting.operation.general.retry_backoff_max_placeholder'
+              )}
+            />
+            <Form.Input
+              label={t('setting.operation.general.retry_jitter')}
+              name='RetryJitterMilliseconds'
+              type='number'
+              step='1'
+              min='0'
+              onChange={handleInputChange}
+              autoComplete='new-password'
+              value={inputs.RetryJitterMilliseconds}
+              placeholder={t(
+                'setting.operation.general.retry_jitter_placeholder'
+              )}
+            />
+            <Form.Input
+              label={t('setting.operation.general.channel_rate_limit_cooldown')}
+              name='ChannelRateLimitCooldownSeconds'
+              type='number'
+              step='1'
+              min='0'
+              onChange={handleInputChange}
+              autoComplete='new-password'
+              value={inputs.ChannelRateLimitCooldownSeconds}
+              placeholder={t(
+                'setting.operation.general.channel_rate_limit_cooldown_placeholder'
               )}
             />
           </Form.Group>

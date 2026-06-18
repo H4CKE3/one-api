@@ -74,6 +74,10 @@ func InitOptionMap() {
 	config.OptionMap["ChatLink"] = config.ChatLink
 	config.OptionMap["QuotaPerUnit"] = strconv.FormatFloat(config.QuotaPerUnit, 'f', -1, 64)
 	config.OptionMap["RetryTimes"] = strconv.Itoa(config.RetryTimes)
+	config.OptionMap["RetryBackoffBaseMilliseconds"] = strconv.Itoa(config.RetryBackoffBaseMilliseconds)
+	config.OptionMap["RetryBackoffMaxMilliseconds"] = strconv.Itoa(config.RetryBackoffMaxMilliseconds)
+	config.OptionMap["RetryJitterMilliseconds"] = strconv.Itoa(config.RetryJitterMilliseconds)
+	config.OptionMap["ChannelRateLimitCooldownSeconds"] = strconv.Itoa(config.ChannelRateLimitCooldownSeconds)
 	config.OptionMap["Theme"] = config.Theme
 	config.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
@@ -223,6 +227,14 @@ func updateOptionMap(key string, value string) (err error) {
 		config.PreConsumedQuota, _ = strconv.ParseInt(value, 10, 64)
 	case "RetryTimes":
 		config.RetryTimes, _ = strconv.Atoi(value)
+	case "RetryBackoffBaseMilliseconds":
+		config.RetryBackoffBaseMilliseconds, _ = strconv.Atoi(value)
+	case "RetryBackoffMaxMilliseconds":
+		config.RetryBackoffMaxMilliseconds, _ = strconv.Atoi(value)
+	case "RetryJitterMilliseconds":
+		config.RetryJitterMilliseconds, _ = strconv.Atoi(value)
+	case "ChannelRateLimitCooldownSeconds":
+		config.ChannelRateLimitCooldownSeconds, _ = strconv.Atoi(value)
 	case "ModelRatio":
 		err = billingratio.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":

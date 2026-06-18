@@ -234,22 +234,26 @@ func CacheGetRandomSatisfiedChannel(group string, model string, ignoreFirstPrior
 	if len(channels) == 0 {
 		return nil, errors.New("channel not found")
 	}
-	endIdx := len(channels)
-	// choose by priority
-	firstChannel := channels[0]
-	if firstChannel.GetPriority() > 0 {
-		for i := range channels {
-			if channels[i].GetPriority() != firstChannel.GetPriority() {
-				endIdx = i
-				break
-			}
+	candidates := make([]channelCandidate, 0, len(channels))
+	for _, channel := range channels {
+		candidates = append(candidates, channelCandidate{
+			channelID: channel.Id,
+			priority:  channel.GetPriority(),
+		})
+	}
+	channelID, err := selectChannelID(candidates, ignoreFirstPriority, IsChannelRateLimited, func(n int) int {
+		if ignoreFirstPriority && len(channels) > 1 {
+			return random.RandRange(0, n)
+		}
+		return rand.Intn(n)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		if channel.Id == channelID {
+			return channel, nil
 		}
 	}
-	idx := rand.Intn(endIdx)
-	if ignoreFirstPriority {
-		if endIdx < len(channels) { // which means there are more than one priority
-			idx = random.RandRange(endIdx, len(channels))
-		}
-	}
-	return channels[idx], nil
+	return nil, errors.New("channel not found")
 }
