@@ -5,8 +5,8 @@ COPY ./VERSION .
 COPY ./web .
 
 RUN npm ci --prefix /web/default
-RUN npm ci --prefix /web/berry
-RUN npm ci --prefix /web/air
+RUN npm install --prefix /web/berry
+RUN npm install --prefix /web/air
 
 RUN rm -rf /web/build && mkdir -p /web/build
 

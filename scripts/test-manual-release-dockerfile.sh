@@ -3,22 +3,23 @@ set -euo pipefail
 
 dockerfile="${1:-Dockerfile.manual-release}"
 
-install_line="$(grep -n "npm .*--prefix /web/default" "${dockerfile}" | head -n 1 || true)"
-build_line="$(grep -n "npm run build --prefix /web/default" "${dockerfile}" | head -n 1 || true)"
+for line in \
+  "$(grep -n "npm .*--prefix /web/default" "${dockerfile}" | head -n 1 || true)" \
+  "$(grep -n "npm .*--prefix /web/berry" "${dockerfile}" | head -n 1 || true)" \
+  "$(grep -n "npm .*--prefix /web/air" "${dockerfile}" | head -n 1 || true)" \
+  "$(grep -n "npm run build --prefix /web/default" "${dockerfile}" | head -n 1 || true)" \
+  "$(grep -n "npm run build --prefix /web/berry" "${dockerfile}" | head -n 1 || true)" \
+  "$(grep -n "npm run build --prefix /web/air" "${dockerfile}" | head -n 1 || true)"
+do
+  if [[ -z "${line}" ]]; then
+    echo "missing expected frontend install/build lines in ${dockerfile}" >&2
+    exit 1
+  fi
 
-if [[ -z "${install_line}" || -z "${build_line}" ]]; then
-  echo "missing expected frontend install/build lines in ${dockerfile}" >&2
-  exit 1
-fi
-
-if [[ "${install_line}" == *"&"* ]]; then
-  echo "frontend install step must not run in parallel: ${install_line}" >&2
-  exit 1
-fi
-
-if [[ "${build_line}" == *"&"* ]]; then
-  echo "frontend build step must not run in parallel: ${build_line}" >&2
-  exit 1
-fi
+  if [[ "${line}" == *"&"* ]]; then
+    echo "frontend step must not run in parallel: ${line}" >&2
+    exit 1
+  fi
+done
 
 echo "manual release dockerfile frontend steps are sequential"
