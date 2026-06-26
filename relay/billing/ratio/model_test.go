@@ -48,6 +48,14 @@ func TestGeminiDeveloperAPIPricingExamples(t *testing.T) {
 		geminiQuotaCostUSD(t, "gemini-3-flash-preview", channeltype.Gemini, 695, 45, 1),
 		695.0/1000000.0*0.50+45.0/1000000.0*3.00,
 	)
+
+	// Source: https://ai.google.dev/pricing
+	// Gemini 3.5 Flash: input $1.50 / 1M tokens, output $9.00 / 1M tokens.
+	assertNearlyEqual(
+		t,
+		geminiQuotaCostUSD(t, "gemini-3.5-flash", channeltype.Gemini, 10000, 2000, 1),
+		10000.0/1000000.0*1.50+2000.0/1000000.0*9.00,
+	)
 }
 
 func TestGeminiVertexAIPricingExamples(t *testing.T) {
