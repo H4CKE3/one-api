@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/songquanpeng/one-api/common/render"
@@ -302,10 +303,10 @@ func (g *ChatResponse) GetResponseText() string {
 	if g == nil {
 		return ""
 	}
-	if len(g.Candidates) > 0 && len(g.Candidates[0].Content.Parts) > 0 {
-		return g.Candidates[0].Content.Parts[0].Text
+	if len(g.Candidates) == 0 {
+		return ""
 	}
-	return ""
+	return getCandidateText(&g.Candidates[0])
 }
 
 type UsageMetadata struct {
@@ -388,6 +389,64 @@ func getToolCalls(candidate *ChatCandidate) []model.Tool {
 	return toolCalls
 }
 
+func getCandidateText(candidate *ChatCandidate) string {
+	if candidate == nil {
+		return ""
+	}
+	var builder strings.Builder
+	for _, part := range candidate.Content.Parts {
+		builder.WriteString(part.Text)
+	}
+	return builder.String()
+}
+
+func hasToolCall(candidate *ChatCandidate) bool {
+	if candidate == nil {
+		return false
+	}
+	for _, part := range candidate.Content.Parts {
+		if part.FunctionCall != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func emptyVisibleContentDiagnostic(response *ChatResponse, usage *model.Usage) string {
+	if response == nil || len(response.Candidates) == 0 || hasToolCall(&response.Candidates[0]) {
+		return ""
+	}
+	candidate := response.Candidates[0]
+	if strings.TrimSpace(getCandidateText(&candidate)) != "" {
+		return ""
+	}
+
+	parts := []string{"Gemini returned no visible content"}
+	if candidate.FinishReason != "" {
+		parts = append(parts, "finishReason="+candidate.FinishReason)
+	}
+	if usage != nil {
+		parts = append(parts,
+			"promptTokens="+strconv.Itoa(usage.PromptTokens),
+			"completionTokens="+strconv.Itoa(usage.CompletionTokens),
+			"totalTokens="+strconv.Itoa(usage.TotalTokens),
+		)
+	}
+	if len(candidate.SafetyRatings) > 0 {
+		ratings := make([]string, 0, len(candidate.SafetyRatings))
+		for _, rating := range candidate.SafetyRatings {
+			if rating.Category == "" && rating.Probability == "" {
+				continue
+			}
+			ratings = append(ratings, rating.Category+":"+rating.Probability)
+		}
+		if len(ratings) > 0 {
+			parts = append(parts, "safetyRatings="+strings.Join(ratings, ","))
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
 func responseGeminiChat2OpenAI(response *ChatResponse) *openai.TextResponse {
 	fullTextResponse := openai.TextResponse{
 		Id:      fmt.Sprintf("chatcmpl-%s", random.GetUUID()),
@@ -407,14 +466,7 @@ func responseGeminiChat2OpenAI(response *ChatResponse) *openai.TextResponse {
 			if candidate.Content.Parts[0].FunctionCall != nil {
 				choice.Message.ToolCalls = getToolCalls(&candidate)
 			} else {
-				var builder strings.Builder
-				for _, part := range candidate.Content.Parts {
-					if i > 0 {
-						builder.WriteString("\n")
-					}
-					builder.WriteString(part.Text)
-				}
-				choice.Message.Content = builder.String()
+				choice.Message.Content = getCandidateText(&candidate)
 			}
 		} else {
 			choice.Message.Content = ""
@@ -542,11 +594,9 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	fullTextResponse := responseGeminiChat2OpenAI(&geminiResponse)
 	fullTextResponse.Model = modelName
 
-	// 提取响应内容
-	responseText := geminiResponse.GetResponseText()
-
 	var usage *model.Usage
 	if geminiResponse.UsageMetadata.IsZero() {
+		responseText := geminiResponse.GetResponseText()
 		completionTokens := openai.CountTokenText(responseText, modelName)
 		usage = &model.Usage{
 			PromptTokens:     promptTokens,
@@ -555,6 +605,12 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 		}
 	} else {
 		usage = geminiResponse.UsageMetadata.ToOpenAIUsage()
+	}
+	// Keep billing based on Gemini usage, but make empty visible responses traceable
+	// in chat records and logs.
+	responseText := geminiResponse.GetResponseText()
+	if responseText == "" {
+		responseText = emptyVisibleContentDiagnostic(&geminiResponse, usage)
 	}
 	fullTextResponse.Usage = *usage
 	jsonResponse, err := json.Marshal(fullTextResponse)
