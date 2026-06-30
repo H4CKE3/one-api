@@ -146,6 +146,7 @@ var ModelRatio = map[string]float64{
 	"gemini-2.5-flash-preview-05-20":      0.30 * MILLI_USD,
 	"gemini-2.5-flash-lite":               0.10 * MILLI_USD,
 	"gemini-3-flash-preview":              0.50 * MILLI_USD,
+	"gemini-3.1-pro-preview":              2.00 * MILLI_USD,
 	"gemini-3.5-flash":                    1.50 * MILLI_USD,
 	"aqa":                                 1,
 	// https://open.bigmodel.cn/pricing
@@ -664,6 +665,7 @@ var CompletionRatio = map[string]float64{
 	"gemini-2.5-flash-preview-05-20":      2.50 / 0.30,
 	"gemini-2.5-flash-lite":               4,
 	"gemini-3-flash-preview":              3.00 / 0.50,
+	"gemini-3.1-pro-preview":              12.00 / 2.00,
 	"gemini-3.5-flash":                    9.00 / 1.50,
 }
 
@@ -769,6 +771,13 @@ func getGeminiTextPrice(name string, channelType int, promptTokens int) (geminiT
 		"gemini-3-flash-preview": {
 			InputUSDPerMillion:  0.50,
 			OutputUSDPerMillion: 3.00,
+		},
+		"gemini-3.1-pro-preview": {
+			InputUSDPerMillion:      2.00,
+			OutputUSDPerMillion:     12.00,
+			LongInputUSDPerMillion:  4.00,
+			LongOutputUSDPerMillion: 18.00,
+			LongContextThreshold:    200000,
 		},
 		"gemini-3.5-flash": {
 			InputUSDPerMillion:  1.50,

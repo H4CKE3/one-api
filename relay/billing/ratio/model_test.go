@@ -56,6 +56,22 @@ func TestGeminiDeveloperAPIPricingExamples(t *testing.T) {
 		geminiQuotaCostUSD(t, "gemini-3.5-flash", channeltype.Gemini, 10000, 2000, 1),
 		10000.0/1000000.0*1.50+2000.0/1000000.0*9.00,
 	)
+
+	// Source: https://ai.google.dev/pricing
+	// Gemini 3.1 Pro Preview <= 200k prompt tokens: input $2.00 / 1M tokens, output $12.00 / 1M tokens.
+	assertNearlyEqual(
+		t,
+		geminiQuotaCostUSD(t, "gemini-3.1-pro-preview", channeltype.Gemini, 200000, 5000, 1),
+		200000.0/1000000.0*2.00+5000.0/1000000.0*12.00,
+	)
+
+	// Source: https://ai.google.dev/pricing
+	// Gemini 3.1 Pro Preview > 200k prompt tokens: input $4.00 / 1M tokens, output $18.00 / 1M tokens.
+	assertNearlyEqual(
+		t,
+		geminiQuotaCostUSD(t, "gemini-3.1-pro-preview", channeltype.Gemini, 200001, 5000, 1),
+		200001.0/1000000.0*4.00+5000.0/1000000.0*18.00,
+	)
 }
 
 func TestGeminiVertexAIPricingExamples(t *testing.T) {
