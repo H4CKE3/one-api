@@ -823,6 +823,19 @@ func CalculateGeminiTextQuota(name string, channelType int, promptTokens int, co
 	return quota, true
 }
 
+func GetGeminiTextDisplayRatio(name string, channelType int, promptTokens int) (float64, float64, bool) {
+	price, ok := getGeminiTextPrice(name, channelType, promptTokens)
+	if !ok {
+		return 0, 0, false
+	}
+	modelRatio := pricePerMillionTokensToRatio(price.InputUSDPerMillion)
+	completionRatio := 1.0
+	if modelRatio != 0 {
+		completionRatio = price.OutputUSDPerMillion / price.InputUSDPerMillion
+	}
+	return modelRatio, completionRatio, true
+}
+
 var (
 	DefaultModelRatio      map[string]float64
 	DefaultCompletionRatio map[string]float64

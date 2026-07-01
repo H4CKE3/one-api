@@ -129,7 +129,13 @@ func postConsumeQuota(ctx context.Context, usage *relaymodel.Usage, meta *meta.M
 	if err != nil {
 		logger.Error(ctx, "error update user quota cache: "+err.Error())
 	}
-	logContent := fmt.Sprintf("倍率：%.2f × %.2f × %.2f", modelRatio, groupRatio, completionRatio)
+	displayModelRatio := modelRatio
+	displayCompletionRatio := completionRatio
+	if geminiModelRatio, geminiCompletionRatio, ok := billingratio.GetGeminiTextDisplayRatio(textRequest.Model, meta.ChannelType, promptTokens); ok {
+		displayModelRatio = geminiModelRatio
+		displayCompletionRatio = geminiCompletionRatio
+	}
+	logContent := fmt.Sprintf("倍率：%.2f × %.2f × %.2f", displayModelRatio, groupRatio, displayCompletionRatio)
 	model.RecordConsumeLog(ctx, &model.Log{
 		UserId:            meta.UserId,
 		ChannelId:         meta.ChannelId,

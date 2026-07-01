@@ -74,6 +74,30 @@ func TestGeminiDeveloperAPIPricingExamples(t *testing.T) {
 	)
 }
 
+func TestGeminiTextDisplayRatioUsesLongContextPricing(t *testing.T) {
+	modelRatio, completionRatio, ok := GetGeminiTextDisplayRatio("gemini-3.1-pro-preview", channeltype.Gemini, 200001)
+	if !ok {
+		t.Fatal("expected gemini-3.1-pro-preview to have Gemini text display ratios")
+	}
+	if modelRatio != 2.00 {
+		t.Fatalf("expected long-context input ratio 2.00, got %.2f", modelRatio)
+	}
+	if completionRatio != 4.50 {
+		t.Fatalf("expected long-context completion ratio 4.50, got %.2f", completionRatio)
+	}
+
+	modelRatio, completionRatio, ok = GetGeminiTextDisplayRatio("gemini-3.1-pro-preview", channeltype.Gemini, 200000)
+	if !ok {
+		t.Fatal("expected gemini-3.1-pro-preview to have Gemini text display ratios")
+	}
+	if modelRatio != 1.00 {
+		t.Fatalf("expected standard input ratio 1.00, got %.2f", modelRatio)
+	}
+	if completionRatio != 6.00 {
+		t.Fatalf("expected standard completion ratio 6.00, got %.2f", completionRatio)
+	}
+}
+
 func TestGeminiVertexAIPricingExamples(t *testing.T) {
 	// Source: https://cloud.google.com/vertex-ai/generative-ai/pricing
 	// Gemini 2.0 Flash: input $0.15 / 1M tokens, output $0.60 / 1M tokens.
